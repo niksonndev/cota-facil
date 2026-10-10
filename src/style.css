@@ -124,9 +124,14 @@ html[data-offline='true'] .status {
 main {
   display: flex;
   flex-direction: column;
+  /* Centraliza o bloco de moedas no espaço livre; se ele não couber, a rolagem
+     assume e o "safe" evita cortar o topo. */
+  justify-content: safe center;
   border-top: 1px solid var(--borda);
   flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .linha {
@@ -138,10 +143,9 @@ main {
   border-bottom: 1px solid var(--sep);
   border-left: 3px solid transparent;
   transition: background 0.12s ease;
-  /* As linhas dividem a altura livre, então não sobra espaço para rolar. */
-  flex: 1 1 auto;
-  min-height: 3.2rem;
-  overflow: hidden;
+  /* Altura própria, igual para todas as moedas. Não estica. */
+  flex: 0 0 auto;
+  min-height: 4rem;
 }
 
 .linha-foco {
