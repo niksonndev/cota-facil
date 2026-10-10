@@ -230,8 +230,8 @@ main {
   font-size: 1.3rem;
 }
 
-body.sem-teclado .teclado {
-  display: none;
+.tecla.largo {
+  grid-column: span 2;
 }
 
 /* Rodapé --------------------------------------------------------- */

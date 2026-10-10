@@ -23,6 +23,16 @@ const MOEDAS = [
 
 const app = document.getElementById('app');
 
+/**
+ * Dispositivo de toque (celular/tablet): o campo não deve abrir o teclado do
+ * sistema — o app já tem o próprio teclado numérico. No computador o campo
+ * continua digitável normalmente.
+ */
+const DISPOSITIVO_TOQUE =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 /* ------------------------------------------------------------------ */
 /* Formatação                                                          */
 /* ------------------------------------------------------------------ */
@@ -230,7 +240,8 @@ function linhaMoeda(moeda) {
         <input
           class="valor"
           type="text"
-          inputmode="decimal"
+          inputmode="${DISPOSITIVO_TOQUE ? 'none' : 'decimal'}"
+          ${DISPOSITIVO_TOQUE ? 'readonly' : ''}
           autocomplete="off"
           spellcheck="false"
           data-moeda="${moeda.codigo}"
@@ -242,8 +253,8 @@ function linhaMoeda(moeda) {
   `;
 }
 
-function tecla(valor, classe = '', acao = '') {
-  return `<button class="tecla ${classe}" type="button" data-tecla="${valor}"${acao ? ` data-acao-tecla="${acao}"` : ''}>${valor}</button>`;
+function tecla(valor, classe = '') {
+  return `<button class="tecla ${classe}" type="button" data-tecla="${valor}">${valor}</button>`;
 }
 
 function render() {
@@ -277,8 +288,8 @@ function render() {
     <div class="teclado">
       ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn')}
       ${tecla('4')}${tecla('5')}${tecla('6')}${tecla('AC', 'fn')}
-      ${tecla('1')}${tecla('2')}${tecla('3')}${tecla(',')}
-      ${tecla('00')}${tecla('0')}${tecla('.')}${tecla('⌄', 'fn', 'ocultar')}
+      ${tecla('1')}${tecla('2')}${tecla('3')}${tecla(',', 'fn')}
+      ${tecla('00')}${tecla('0')}${tecla('.', 'fn largo')}
     </div>
 
     <footer><p>Fonte: Coinbase · atualiza a cada minuto</p></footer>
@@ -313,15 +324,9 @@ function ligarEventos() {
     });
   });
 
-  // Teclado numérico da tela.
+  // Teclado numérico da tela (sempre aberto).
   app.querySelectorAll('[data-tecla]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.acaoTecla === 'ocultar') {
-        document.body.classList.toggle('sem-teclado');
-        return;
-      }
-      aplicarTecla(btn.dataset.tecla);
-    });
+    btn.addEventListener('click', () => aplicarTecla(btn.dataset.tecla));
   });
 
   app.querySelectorAll('[data-acao="atualizar"]').forEach((btn) => {
