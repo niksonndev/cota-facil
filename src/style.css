@@ -300,3 +300,121 @@ footer p {
   font-size: 0.68rem;
   color: var(--rodape);
 }
+
+/* Painel de seleção de moedas ------------------------------------ */
+
+.painel-host {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.painel-host[hidden] {
+  display: none;
+}
+
+.painel-fundo {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 8, 12, 0.62);
+}
+
+.painel {
+  position: relative;
+  background: var(--bg);
+  border-top: 1px solid var(--borda);
+  border-radius: 18px 18px 0 0;
+  max-height: 78%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.painel-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--borda);
+  font-size: 1rem;
+}
+
+.painel-lista {
+  overflow-y: auto;
+  padding: 0.4rem 0.6rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.painel-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  padding: 0.6rem 0.7rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--texto);
+}
+
+.painel-item:active {
+  background: var(--linha);
+}
+
+.painel-item-ativa {
+  background: var(--laranja-suave);
+}
+
+.painel-bandeira {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--bandeira);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.painel-nome {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  line-height: 1.15;
+}
+
+.painel-nome strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.painel-nome small {
+  font-size: 0.7rem;
+  color: var(--suave);
+}
+
+.painel-marca {
+  width: 1.5rem;
+  text-align: center;
+  color: var(--laranja);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.painel-pe {
+  padding: 0.6rem 1rem 0.9rem;
+  border-top: 1px solid var(--borda);
+  text-align: center;
+}
+
+.painel-pe p {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--suave);
+}

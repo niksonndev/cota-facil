@@ -4,23 +4,36 @@ const BASE_URL = 'https://api.coinbase.com/v2/exchange-rates';
 const CACHE_KEY = 'cotafacil:taxas';
 const FOCO_KEY = 'cotafacil:foco';
 const TEMA_KEY = 'cotafacil:tema';
+const MOEDAS_KEY = 'cotafacil:moedas';
 const REFRESH_MS = 60_000; // um minuto entre atualizações
 
 const SATS_POR_BTC = 100_000_000;
 
 /**
- * Moedas exibidas. `tipo` decide a formatação:
- *  - 'btc': casas decimais escaladas (nunca vira 0,00000000)
- *  - 'sats': inteiro com separador de milhar
- *  - 'fiat': N casas decimais fixas
+ * Catálogo de moedas. `casas` é o número de casas decimais na exibição e
+ * `decimais` controla se o teclado aceita fração (moedas muito inflacionadas,
+ * como ARS e PYG, mostram inteiro).
  */
-const MOEDAS = [
-  { codigo: 'BTC', nome: 'Bitcoin', rotulo: 'BTC', simbolo: '₿', bandeira: '₿', tipo: 'btc', casas: null, btc: true },
+const CATALOGO = [
+  { codigo: 'BTC', nome: 'Bitcoin', rotulo: 'BTC', simbolo: '₿', bandeira: '₿', tipo: 'btc', casas: 2, btc: true },
   { codigo: 'SATS', nome: 'Bitcoin (Satoshi)', rotulo: 'SATS', simbolo: 'sat', bandeira: '⚡', tipo: 'sats', casas: 0, btc: false },
-  { codigo: 'USD', nome: 'Dólar americano', rotulo: 'USD', simbolo: '$', bandeira: '🇺🇸', tipo: 'fiat', casas: 2, btc: false },
-  { codigo: 'BRL', nome: 'Real brasileiro', rotulo: 'BRL', simbolo: 'R$', bandeira: '🇧🇷', tipo: 'fiat', casas: 2, btc: false },
-  { codigo: 'PYG', nome: 'Guarani paraguaio', rotulo: 'PYG', simbolo: '₲', bandeira: '🇵🇾', tipo: 'fiat', casas: 0, btc: false },
+  { codigo: 'USD', nome: 'Dólar americano', rotulo: 'USD', simbolo: '$', bandeira: '🇺🇸', tipo: 'fiat', casas: 2 },
+  { codigo: 'EUR', nome: 'Euro', rotulo: 'EUR', simbolo: '€', bandeira: '🇪🇺', tipo: 'fiat', casas: 2 },
+  { codigo: 'BRL', nome: 'Real brasileiro', rotulo: 'BRL', simbolo: 'R$', bandeira: '🇧🇷', tipo: 'fiat', casas: 2 },
+  { codigo: 'GBP', nome: 'Libra esterlina', rotulo: 'GBP', simbolo: '£', bandeira: '🇬🇧', tipo: 'fiat', casas: 2 },
+  { codigo: 'ARS', nome: 'Peso argentino', rotulo: 'ARS', simbolo: '$', bandeira: '🇦🇷', tipo: 'fiat', casas: 0 },
+  { codigo: 'MXN', nome: 'Peso mexicano', rotulo: 'MXN', simbolo: '$', bandeira: '🇲🇽', tipo: 'fiat', casas: 2 },
+  { codigo: 'PYG', nome: 'Guarani paraguaio', rotulo: 'PYG', simbolo: '₲', bandeira: '🇵🇾', tipo: 'fiat', casas: 0 },
+  { codigo: 'UYU', nome: 'Peso uruguaio', rotulo: 'UYU', simbolo: '$', bandeira: '🇺🇾', tipo: 'fiat', casas: 2 },
+  { codigo: 'CLP', nome: 'Peso chileno', rotulo: 'CLP', simbolo: '$', bandeira: '🇨🇱', tipo: 'fiat', casas: 0 },
+  { codigo: 'CAD', nome: 'Dólar canadense', rotulo: 'CAD', simbolo: '$', bandeira: '🇨🇦', tipo: 'fiat', casas: 2 },
+  { codigo: 'JPY', nome: 'Iene japonês', rotulo: 'JPY', simbolo: '¥', bandeira: '🇯🇵', tipo: 'fiat', casas: 0 },
+  { codigo: 'CHF', nome: 'Franco suíço', rotulo: 'CHF', simbolo: 'Fr', bandeira: '🇨🇭', tipo: 'fiat', casas: 2 },
+  { codigo: 'CNY', nome: 'Yuan chinês', rotulo: 'CNY', simbolo: '¥', bandeira: '🇨🇳', tipo: 'fiat', casas: 2 },
 ];
+
+/** Moedas escolhidas pelo usuário (ordem exibida). */
+const PADRAO = ['BTC', 'SATS', 'USD', 'BRL', 'PYG'];
 
 const app = document.getElementById('app');
 
@@ -74,7 +87,7 @@ function formatarValor(valor, moeda) {
 }
 
 function moedaInfo(codigo) {
-  return MOEDAS.find((m) => m.codigo === codigo) || MOEDAS[0];
+  return CATALOGO.find((m) => m.codigo === codigo) || CATALOGO[0];
 }
 
 /**
@@ -108,7 +121,45 @@ const state = {
   buffer: '1',
   // 'escuro' (padrão) ou 'claro'
   tema: localStorage.getItem(TEMA_KEY) || 'escuro',
+  // Códigos das moedas exibidas, na ordem escolhida.
+  moedas: lerMoedas(),
+  // Lista de seleção aberta?
+  listaAberta: false,
 };
+
+/** Lê a seleção de moedas, validando contra o catálogo. */
+function lerMoedas() {
+  try {
+    const bruto = JSON.parse(localStorage.getItem(MOEDAS_KEY) || 'null');
+    if (!Array.isArray(bruto)) return [...PADRAO];
+    const validas = bruto.filter((c) => CATALOGO.some((m) => m.codigo === c));
+    return validas.length > 0 ? validas : [...PADRAO];
+  } catch {
+    return [...PADRAO];
+  }
+}
+
+function salvarMoedas() {
+  try {
+    localStorage.setItem(MOEDAS_KEY, JSON.stringify(state.moedas));
+  } catch {
+    // modo privado/cheio: segue sem persistir
+  }
+}
+
+/** Objetos do catálogo correspondentes à seleção atual. */
+function moedasAtivas() {
+  return state.moedas.map((c) => CATALOGO.find((m) => m.codigo === c)).filter(Boolean);
+}
+
+/** Garante que a moeda em foco ainda está na lista de moedas exibidas. */
+function garantirFocoValido() {
+  if (!state.moedas.includes(state.foco)) {
+    state.foco = state.moedas[0] || 'USD';
+    state.buffer = '1';
+    localStorage.setItem(FOCO_KEY, state.foco);
+  }
+}
 
 function lerCache() {
   try {
@@ -130,8 +181,9 @@ function salvarCache(dados) {
 }
 
 /**
- * Taxa de cada moeda numa base comum (USD): taxa[X] = quantos X valem 1 USD.
- * Derivado só do cache, então trocar o campo em foco nunca depende da API.
+ * Taxa de cada moeda do catálogo numa base comum (USD): taxa[X] = quantos X
+ * valem 1 USD. Derivado só do cache, então trocar o campo em foco nunca depende
+ * da API. `SATS` é calculado a partir de `BTC`.
  */
 function tabelaPrecos() {
   const entradas = Object.values(state.caches);
@@ -139,16 +191,13 @@ function tabelaPrecos() {
     const r = entrada?.data;
     if (!r) continue;
     const taxa = {};
-    if (r.USD != null) taxa.USD = r.USD;
-    if (r.BRL != null) taxa.BRL = r.BRL;
-    if (r.PYG != null) taxa.PYG = r.PYG;
-    if (r.BTC != null) {
-      taxa.BTC = r.BTC;
-      taxa.SATS = r.BTC * SATS_POR_BTC;
+    for (const m of CATALOGO) {
+      if (m.codigo === 'SATS') continue;
+      if (r[m.codigo] != null) taxa[m.codigo] = r[m.codigo];
     }
-    if (MOEDAS.every((m) => taxa[m.codigo] != null)) {
-      return { taxa, atualizadoEm: entrada.atualizadoEm };
-    }
+    if (taxa.BTC != null) taxa.SATS = taxa.BTC * SATS_POR_BTC;
+    const obrigatorias = ['USD', 'BRL', 'BTC'].every((c) => taxa[c] != null);
+    if (obrigatorias) return { taxa, atualizadoEm: entrada.atualizadoEm };
   }
   return null;
 }
@@ -181,12 +230,13 @@ async function buscarTaxas(base) {
   if (!rs) throw new Error('resposta sem taxas');
 
   const porCodigo = {};
-  for (const chave of ['USD', 'BRL', 'PYG', 'BTC']) {
-    const valor = rs[chave];
+  for (const m of CATALOGO) {
+    if (m.codigo === 'SATS') continue; // derivado de BTC
+    const valor = rs[m.codigo];
     if (valor == null || Number.isNaN(Number(valor))) {
-      throw new Error(`sem taxa de ${chave}`);
+      throw new Error(`sem taxa de ${m.codigo}`);
     }
-    porCodigo[chave] = Number(valor);
+    porCodigo[m.codigo] = Number(valor);
   }
   return { data: porCodigo, atualizadoEm: new Date().toISOString() };
 }
@@ -285,6 +335,12 @@ function render() {
         <button
           class="btn-icone"
           type="button"
+          data-acao="lista-moedas"
+          aria-label="Escolher moedas"
+        >＋</button>
+        <button
+          class="btn-icone"
+          type="button"
           data-acao="tema"
           aria-label="${state.tema === 'claro' ? 'Mudar para tema escuro' : 'Mudar para tema claro'}"
         >${state.tema === 'claro' ? '🌙' : '☀️'}</button>
@@ -294,7 +350,7 @@ function render() {
       </div>
     </header>
 
-    <main>${MOEDAS.map(linhaMoeda).join('')}</main>
+    <main>${moedasAtivas().map(linhaMoeda).join('')}</main>
 
     <div class="teclado">
       ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn')}
@@ -308,6 +364,91 @@ function render() {
 
   ligarEventos();
   document.documentElement.dataset.offline = state.erro ? 'true' : 'false';
+}
+
+/** Painel de seleção de moedas, sobreposto à tela. */
+function painelMoedas() {
+  return `
+    <div class="painel-fundo" data-acao="fechar-lista"></div>
+    <section class="painel" role="dialog" aria-label="Escolher moedas">
+      <header class="painel-topo">
+        <strong>Moedas</strong>
+        <button class="btn-icone" type="button" data-acao="fechar-lista" aria-label="Fechar">✕</button>
+      </header>
+      <div class="painel-lista">
+        ${CATALOGO.map((m) => {
+          const ativa = state.moedas.includes(m.codigo);
+          return `
+            <button
+              class="painel-item ${ativa ? 'painel-item-ativa' : ''}"
+              type="button"
+              data-toggle="${m.codigo}"
+            >
+              <span class="painel-bandeira">${m.bandeira}</span>
+              <span class="painel-nome">
+                <strong>${m.rotulo}</strong>
+                <small>${m.nome}</small>
+              </span>
+              <span class="painel-marca">${ativa ? '✓' : ''}</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+      <footer class="painel-pe">
+        <p>Toque para adicionar ou remover. Deixe pelo menos uma moeda.</p>
+      </footer>
+    </section>
+  `;
+}
+
+/* ------------------------------------------------------------------ */
+/* Painel de moedas                                                    */
+/* ------------------------------------------------------------------ */
+
+const painelEl = document.createElement('div');
+painelEl.className = 'painel-host';
+painelEl.hidden = true;
+document.body.appendChild(painelEl);
+
+function abrirPainel() {
+  state.listaAberta = true;
+  desenharPainel();
+  painelEl.hidden = false;
+}
+
+function fecharPainel() {
+  state.listaAberta = false;
+  painelEl.hidden = true;
+}
+
+function desenharPainel() {
+  painelEl.innerHTML = painelMoedas();
+  painelEl.querySelectorAll('[data-acao="fechar-lista"]').forEach((el) => {
+    el.addEventListener('click', () => fecharPainel());
+  });
+  painelEl.querySelectorAll('[data-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => alternarMoeda(btn.dataset.toggle));
+  });
+}
+
+/** Adiciona ou remove uma moeda da lista (nunca deixa a lista vazia). */
+function alternarMoeda(codigo) {
+  const i = state.moedas.indexOf(codigo);
+  if (i >= 0) {
+    if (state.moedas.length === 1) return; // sempre pelo menos uma
+    state.moedas.splice(i, 1);
+    // Se a moeda removida era a base, volta para a primeira da lista.
+    if (state.foco === codigo) {
+      state.foco = state.moedas[0];
+      state.buffer = '1';
+      localStorage.setItem(FOCO_KEY, state.foco);
+    }
+  } else {
+    state.moedas.push(codigo);
+  }
+  salvarMoedas();
+  desenharPainel();
+  render();
 }
 
 /* ------------------------------------------------------------------ */
@@ -346,6 +487,11 @@ function ligarEventos() {
 
   app.querySelectorAll('[data-acao="tema"]').forEach((btn) => {
     btn.addEventListener('click', () => alternarTema());
+  });
+
+  // Painel de moedas (vive fora do #app pra não recriar a tela a cada toque)
+  app.querySelectorAll('[data-acao="lista-moedas"]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirPainel());
   });
 }
 
@@ -420,7 +566,7 @@ function atualizarRealce() {
 /** Recalcula e reescreve só os campos que NÃO estão em foco. */
 function atualizarDerivados() {
   const qtd = quantidadeAtual();
-  for (const moeda of MOEDAS) {
+  for (const moeda of moedasAtivas()) {
     if (moeda.codigo === state.foco) continue;
     const el = app.querySelector(`.valor[data-moeda="${moeda.codigo}"]`);
     if (!el) continue;
@@ -449,6 +595,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+garantirFocoValido();
 aplicarTema();
 render();
 atualizar();
