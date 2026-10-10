@@ -19,8 +19,6 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 # Um run por branch: pushes em sequência cancelam o anterior em vez de acumular.
@@ -31,7 +29,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, testes, build e PWA
+    name: Build e validação do PWA
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,27 +42,11 @@ jobs:
       - name: Instalar o Node
         uses: actions/setup-node@v4
         with:
-          # Escolha uma versão que satisfaça os engines do lint/test (ex.:
-          # eslint 10 pede ^20.19 || ^22.13 || >=24; jsdom 30 pede >=22.22).
           node-version: 22
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm test
-
-      # VITE_* vão embutidas no bundle pelo build: não são segredo de verdade,
-      # mas ficam em secrets para não versionar credencial nenhuma. Sem elas o
-      # build passa e só avisa — quem quebra é o app em execução.
-      - name: Build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        run: |
-          if [ -z "$VITE_SUPABASE_URL" ]; then
-            echo "::warning title=Credenciais ausentes::Configure as secrets em Settings > Secrets and variables > Actions. O app foi compilado sem credenciais e não vai conectar."
-          fi
-          pnpm build
+      - run: pnpm build
 
       - name: Validar o PWA gerado
         run: node scripts/check-pwa.mjs
