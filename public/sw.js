@@ -100,7 +100,7 @@ self.addEventListener('message', (event) => {
 const OFFLINE_PAGE =
   '<!doctype html><html lang="pt-BR"><meta charset="utf-8">' +
   '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-  '<body style="margin:0;background:#0f1420;color:#e8ecf4;font-family:system-ui;' +
+  '<body style="margin:0;background:#16181d;color:#f2f4f7;font-family:system-ui;' +
   'display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center">' +
   '<div><h1 style="font-size:1.25rem">Você está offline</h1>' +
   '<p style="color:#8b95a7">Sem conexão agora. As últimas cotações salvas continuam aqui.</p>' +

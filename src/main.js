@@ -1,43 +1,35 @@
 import './style.css';
 
 const BASE_URL = 'https://api.coinbase.com/v2/exchange-rates';
-const CACHE_KEY = 'cotafacil:ultimas';
-const RATE_KEY = 'cotafacil:base'; // moeda usada como base ("USD")
-const REFRESH_MS = 30_000; // meio minuto entre atualizações
-
-/** Moedas suportadas na interface. */
-const MOEDAS = [
-  { codigo: 'BTC', nome: 'Bitcoin', simbolo: '₿' },
-  { codigo: 'USD', nome: 'Dólar americano', simbolo: '$' },
-  { codigo: 'BRL', nome: 'Real brasileiro', simbolo: 'R$' },
-  { codigo: 'PYG', nome: 'Guarani paraguaio', simbolo: '₲' },
-];
+const CACHE_KEY = 'cotafacil:taxas';
+const FOCO_KEY = 'cotafacil:foco';
+const REFRESH_MS = 60_000; // um minuto entre atualizações
 
 const SATS_POR_BTC = 100_000_000;
+
+/**
+ * Moedas exibidas. `tipo` decide a formatação:
+ *  - 'btc': casas decimais escaladas (nunca vira 0,00000000)
+ *  - 'sats': inteiro com separador de milhar
+ *  - 'fiat': N casas decimais fixas
+ */
+const MOEDAS = [
+  { codigo: 'BTC', nome: 'Bitcoin', rotulo: 'BTC', simbolo: '₿', bandeira: '₿', tipo: 'btc', casas: null, btc: true },
+  { codigo: 'SATS', nome: 'Bitcoin (Satoshi)', rotulo: 'SATS', simbolo: 'sat', bandeira: '⚡', tipo: 'sats', casas: 0, btc: false },
+  { codigo: 'USD', nome: 'Dólar americano', rotulo: 'USD', simbolo: '$', bandeira: '🇺🇸', tipo: 'fiat', casas: 2, btc: false },
+  { codigo: 'BRL', nome: 'Real brasileiro', rotulo: 'BRL', simbolo: 'R$', bandeira: '🇧🇷', tipo: 'fiat', casas: 2, btc: false },
+  { codigo: 'PYG', nome: 'Guarani paraguaio', rotulo: 'PYG', simbolo: '₲', bandeira: '🇵🇾', tipo: 'fiat', casas: 0, btc: false },
+];
 
 const app = document.getElementById('app');
 
 /* ------------------------------------------------------------------ */
-/* Utilitários                                                         */
+/* Formatação                                                          */
 /* ------------------------------------------------------------------ */
 
-function formatarMoeda(valor, codigo) {
-  const digitos = codigo === 'PYG' ? 0 : 2;
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: codigo,
-    minimumFractionDigits: digitos,
-    maximumFractionDigits: digitos,
-  }).format(valor);
-}
-
-/**
- * Valor de Bitcoin em texto, com casas decimais escaladas pela magnitude
- * para nunca virar "0,00000000". Um guarani vale ~2e-9 BTC, abaixo de 8 casas.
- */
-function formatarBtcInteligente(valor) {
+/** Bitcoin: casas decimais escaladas pela magnitude. */
+function formatarBtc(valor) {
   const abs = Math.abs(valor);
-  // quantas casas depois da vírgula até o primeiro dígito significativo
   let digitos;
   if (abs === 0) digitos = 2;
   else if (abs >= 1) digitos = 6;
@@ -51,36 +43,66 @@ function formatarBtcInteligente(valor) {
   });
 }
 
-/** Moeda em texto, aceitando mais casas decimais quando o valor é muito pequeno. */
-function formatarValor(valor, codigo, digitosForcados) {
-  if (digitosForcados == null) return formatarMoeda(valor, codigo);
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: codigo,
-    minimumFractionDigits: digitosForcados,
-    maximumFractionDigits: digitosForcados,
-  }).format(valor);
-}
-
+/** Satoshi: inteiro, com separador de milhar. */
 function formatarSats(valor) {
-  // Valor abaixo de 1 satoshi: mostra decimal, senão "0 satoshis" esconde o dado.
-  if (valor > 0 && valor < 1) {
-    return valor.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }) + ' satoshis';
-  }
-  return Math.round(valor).toLocaleString('pt-BR') + ' satoshis';
+  return Math.round(valor).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
 
-/** Saldo cacheado na última atualização bem-sucedida (offline). */
+/** Fiat: N casas, sem símbolo (o símbolo fica na etiqueta da linha). */
+function formatarFiat(valor, casas) {
+  return valor.toLocaleString('pt-BR', {
+    minimumFractionDigits: casas,
+    maximumFractionDigits: casas,
+  });
+}
+
+function formatarValor(valor, moeda) {
+  if (moeda.tipo === 'btc') return formatarBtc(valor);
+  if (moeda.tipo === 'sats') return formatarSats(valor);
+  return formatarFiat(valor, moeda.casas);
+}
+
+function moedaInfo(codigo) {
+  return MOEDAS.find((m) => m.codigo === codigo) || MOEDAS[0];
+}
+
+/**
+ * Converte um texto digitado (pt-BR, vírgula decimal) em número.
+ * Aceita "1.234,56", "1234.56" e "1234,56".
+ */
+function parseNumero(texto) {
+  if (!texto) return NaN;
+  const limpo = String(texto)
+    .replace(/[^\d.,]/g, '')
+    .replace(/\.(?=\d{3}(\D|$))/g, '') // ponto como separador de milhar
+    .replace(',', '.');
+  return Number.parseFloat(limpo);
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+/* ------------------------------------------------------------------ */
+/* Estado                                                              */
+/* ------------------------------------------------------------------ */
+
+const state = {
+  caches: lerCache() || {},
+  carregando: true,
+  erro: null,
+  // Moeda do campo em edição; as demais são derivadas dela.
+  foco: localStorage.getItem(FOCO_KEY) || 'BRL',
+  // Texto bruto que o usuário está digitando no campo em foco.
+  buffer: '1',
+};
+
 function lerCache() {
   try {
     const bruto = localStorage.getItem(CACHE_KEY);
     if (!bruto) return null;
     const dados = JSON.parse(bruto);
-    if (!dados || typeof dados !== 'object') return null;
-    return dados;
+    return dados && typeof dados === 'object' ? dados : null;
   } catch {
     return null;
   }
@@ -94,42 +116,64 @@ function salvarCache(dados) {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Estado                                                              */
-/* ------------------------------------------------------------------ */
+/**
+ * Taxa de cada moeda numa base comum (USD): taxa[X] = quantos X valem 1 USD.
+ * Derivado só do cache, então trocar o campo em foco nunca depende da API.
+ */
+function tabelaPrecos() {
+  const entradas = Object.values(state.caches);
+  for (const entrada of entradas) {
+    const r = entrada?.data;
+    if (!r) continue;
+    const taxa = {};
+    if (r.USD != null) taxa.USD = r.USD;
+    if (r.BRL != null) taxa.BRL = r.BRL;
+    if (r.PYG != null) taxa.PYG = r.PYG;
+    if (r.BTC != null) {
+      taxa.BTC = r.BTC;
+      taxa.SATS = r.BTC * SATS_POR_BTC;
+    }
+    if (MOEDAS.every((m) => taxa[m.codigo] != null)) {
+      return { taxa, atualizadoEm: entrada.atualizadoEm };
+    }
+  }
+  return null;
+}
 
-const state = {
-  base: localStorage.getItem(RATE_KEY) || 'USD',
-  caches: lerCache() || {},
-  carregando: true,
-  erro: null,
-  atualizadoEm: null,
-};
+/** Converte `qtd` da moeda `de` para a moeda `para`. */
+function converter(qtd, de, para) {
+  const t = tabelaPrecos();
+  if (!t) return null;
+  if (t.taxa[de] == null || t.taxa[para] == null) return null;
+  if (de === para) return qtd;
+  return (qtd / t.taxa[de]) * t.taxa[para];
+}
+
+function quantidadeAtual() {
+  const n = parseNumero(state.buffer);
+  return Number.isNaN(n) ? 0 : n;
+}
 
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
 
-/**
- * Busca as taxas de uma moeda base na Coinbase.
- * @returns {Promise<{data: Record<string, number>, atualizadoEm: string}>}
- */
 async function buscarTaxas(base) {
   const resposta = await fetch(`${BASE_URL}?currency=${base}`, {
     cache: 'no-store',
   });
   if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
   const json = await resposta.json();
-  const rates = json?.data?.rates;
-  if (!rates) throw new Error('resposta sem taxas');
+  const rs = json?.data?.rates;
+  if (!rs) throw new Error('resposta sem taxas');
 
   const porCodigo = {};
-  for (const moeda of MOEDAS) {
-    const valor = rates[moeda.codigo];
+  for (const chave of ['USD', 'BRL', 'PYG', 'BTC']) {
+    const valor = rs[chave];
     if (valor == null || Number.isNaN(Number(valor))) {
-      throw new Error(`sem taxa de ${moeda.codigo}`);
+      throw new Error(`sem taxa de ${chave}`);
     }
-    porCodigo[moeda.codigo] = Number(valor);
+    porCodigo[chave] = Number(valor);
   }
   return { data: porCodigo, atualizadoEm: new Date().toISOString() };
 }
@@ -140,10 +184,11 @@ async function atualizar() {
   render();
 
   try {
-    const { data, atualizadoEm } = await buscarTaxas(state.base);
-    state.caches[state.base] = { data, atualizadoEm };
+    // Base fixa em USD: a tabela de preços é sempre relativa a USD, então o
+    // campo em edição do usuário não interfere na busca.
+    const { data, atualizadoEm } = await buscarTaxas('USD');
+    state.caches.USD = { data, atualizadoEm };
     salvarCache(state.caches);
-    state.atualizadoEm = atualizadoEm;
   } catch (e) {
     state.erro = e.message || String(e);
   } finally {
@@ -156,142 +201,195 @@ async function atualizar() {
 /* Render                                                              */
 /* ------------------------------------------------------------------ */
 
-/** Converte "quantas unidades de `de`" para "quantas unidades de `para`". */
-function taxa(de, para) {
-  const rates = state.caches[state.base]?.data;
-  if (!rates) return null;
-  const deBase = 1 / rates[de]; // 1 unidade de `de` = quantas bases
-  const paraBase = rates[para]; // 1 base = quantas `para`
-  return deBase * paraBase;
-}
+function linhaMoeda(moeda) {
+  const t = tabelaPrecos();
+  const ehFoco = moeda.codigo === state.foco;
 
-/** A taxa de BTC sempre é exibida em inteiro + Satoshi, sem exceção. */
-function secaoBitcoin(rates) {
-  const usd = taxa('BTC', 'USD');
-  const brl = taxa('BTC', 'BRL');
-  const pyg = taxa('BTC', 'PYG');
-  // 1 BTC = usd USD  →  1 Satoshi = usd / 100.000.000 USD
-  const satsUsd = usd == null ? null : usd / SATS_POR_BTC;
-  const satsBrl = brl == null ? null : brl / SATS_POR_BTC;
+  let valorTexto = '';
+  if (ehFoco) {
+    valorTexto = state.buffer;
+  } else if (t) {
+    const v = converter(quantidadeAtual(), state.foco, moeda.codigo);
+    valorTexto = v == null ? '' : formatarValor(v, moeda);
+  }
+
+  const classeBandeira = moeda.btc ? 'bandeira bandeira-btc' : 'bandeira';
 
   return `
-    <section class="secao secao-btc">
-      <header class="secao-titulo">
-        <span class="badge">₿ Bitcoin</span>
-        <button class="btn-limpar" data-acao="voltar-base" hidden>↺ voltar para USD</button>
-      </header>
+    <section class="linha ${ehFoco ? 'linha-foco' : ''}" data-linha="${moeda.codigo}">
+      <button class="esq" type="button" data-focar="${moeda.codigo}" aria-label="Editar ${moeda.nome}">
+        <span class="${classeBandeira}">${moeda.bandeira}</span>
+        <span class="cod">
+          <strong>${moeda.rotulo}</strong>
+          <span class="sim">${moeda.simbolo}</span>
+        </span>
+      </button>
 
-      <div class="linha-preco">
-        <div>
-          <p class="rotulo">1 BTC inteiro</p>
-          <p class="preco-grande">${formatarMoeda(usd ?? 0, 'USD')}</p>
-          <p class="equivalente">${formatarMoeda(brl ?? 0, 'BRL')} · ${formatarMoeda(pyg ?? 0, 'PYG')}</p>
-        </div>
-      </div>
-
-      <div class="linha-preco">
-        <div>
-          <p class="rotulo">1 Satoshi</p>
-          <p class="preco-grande preco-sats">${formatarValor(satsUsd ?? 0, 'USD', 8)}</p>
-          <p class="equivalente">${formatarValor(satsBrl ?? 0, 'BRL', 10)}</p>
-        </div>
+      <div class="dir">
+        <span class="nome">${moeda.nome}</span>
+        <input
+          class="valor"
+          type="text"
+          inputmode="decimal"
+          autocomplete="off"
+          spellcheck="false"
+          data-moeda="${moeda.codigo}"
+          value="${escapeAttr(valorTexto)}"
+          aria-label="${moeda.nome}"
+        />
       </div>
     </section>
   `;
 }
 
-function secaoMoeda(moeda, rates) {
-  if (moeda.codigo === 'BTC') return secaoBitcoin(rates);
-
-  const paraBtc = taxa(moeda.codigo, 'BTC');
-  const sats = paraBtc == null ? null : paraBtc * SATS_POR_BTC;
-  const ativa = state.base === moeda.codigo;
-
-  return `
-    <section class="secao ${ativa ? 'secao-ativa' : ''}">
-      <header class="secao-titulo">
-        <span class="badge">${moeda.simbolo} ${moeda.nome}</span>
-        ${ativa ? '' : `<button class="btn-usar" data-usar="${moeda.codigo}">usar como base</button>`}
-      </header>
-
-      <div class="linha-preco">
-        <div>
-          <p class="rotulo">1 ${moeda.codigo} em Bitcoin</p>
-          <p class="preco-grande">${formatarBtcInteligente(paraBtc ?? 0)} BTC</p>
-          <p class="equivalente">${formatarSats(sats ?? 0)}</p>
-        </div>
-      </div>
-    </section>
-  `;
+function tecla(valor, classe = '', acao = '') {
+  return `<button class="tecla ${classe}" type="button" data-tecla="${valor}"${acao ? ` data-acao-tecla="${acao}"` : ''}>${valor}</button>`;
 }
 
 function render() {
-  const cache = state.caches[state.base];
-  const rates = cache?.data || null;
-  const offline = cache && state.erro;
-
-  const atualizado = cache?.atualizadoEm
-    ? new Date(cache.atualizadoEm).toLocaleTimeString('pt-BR', {
+  const t = tabelaPrecos();
+  const atualizado = t?.atualizadoEm
+    ? new Date(t.atualizadoEm).toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',
       })
     : '—';
 
   const status = state.carregando
     ? 'atualizando…'
     : state.erro
-      ? `sem conexão · usando valor salvo às ${atualizado}`
+      ? `sem conexão · salvo às ${atualizado}`
       : `atualizado às ${atualizado}`;
 
   app.innerHTML = `
     <header class="topo">
-      <div>
+      <div class="topo-esq">
         <h1>Cota Fácil</h1>
         <p class="status">${status}</p>
       </div>
-      <button class="btn-atualizar" data-acao="atualizar" ${state.carregando ? 'disabled' : ''}>
+      <button class="btn-atualizar" type="button" data-acao="atualizar" ${state.carregando ? 'disabled' : ''} aria-label="Atualizar">
         ${state.carregando ? '…' : '↻'}
       </button>
     </header>
 
-    <main>
-      ${rates
-        ? MOEDAS.map((m) => secaoMoeda(m, rates)).join('')
-        : `<p class="carregando">Carregando cotações…</p>`}
-    </main>
+    <main>${MOEDAS.map(linhaMoeda).join('')}</main>
 
-    <footer>
-      <p>Fonte: Coinbase · base ${state.base} · atualiza a cada 30s</p>
-    </footer>
+    <div class="teclado">
+      ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn')}
+      ${tecla('4')}${tecla('5')}${tecla('6')}${tecla('AC', 'fn')}
+      ${tecla('1')}${tecla('2')}${tecla('3')}${tecla(',')}
+      ${tecla('00')}${tecla('0')}${tecla('.')}${tecla('⌄', 'fn', 'ocultar')}
+    </div>
+
+    <footer><p>Fonte: Coinbase · atualiza a cada minuto</p></footer>
   `;
 
-  // Liga os botões
-  app.querySelectorAll('[data-usar]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.base = btn.dataset.usar;
-      localStorage.setItem(RATE_KEY, state.base);
-      if (!state.caches[state.base]) atualizar();
-      else render();
+  ligarEventos();
+  document.documentElement.dataset.offline = state.erro ? 'true' : 'false';
+}
+
+/* ------------------------------------------------------------------ */
+/* Eventos                                                             */
+/* ------------------------------------------------------------------ */
+
+function ligarEventos() {
+  // Clicar na etiqueta (esquerda) foca aquela moeda.
+  app.querySelectorAll('[data-focar]').forEach((btn) => {
+    btn.addEventListener('click', () => focarMoeda(btn.dataset.focar));
+  });
+
+  // Digitar com o teclado do sistema.
+  app.querySelectorAll('.valor').forEach((input) => {
+    const moeda = input.dataset.moeda;
+    input.addEventListener('focus', () => {
+      if (state.foco !== moeda) focarMoeda(moeda);
+    });
+    input.addEventListener('input', () => {
+      state.foco = moeda;
+      localStorage.setItem(FOCO_KEY, moeda);
+      state.buffer = input.value;
+      atualizarRealce();
+      atualizarDerivados();
     });
   });
+
+  // Teclado numérico da tela.
+  app.querySelectorAll('[data-tecla]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.acaoTecla === 'ocultar') {
+        document.body.classList.toggle('sem-teclado');
+        return;
+      }
+      aplicarTecla(btn.dataset.tecla);
+    });
+  });
+
   app.querySelectorAll('[data-acao="atualizar"]').forEach((btn) => {
     btn.addEventListener('click', () => atualizar());
   });
-  app.querySelectorAll('[data-acao="voltar-base"]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.base = 'USD';
-      localStorage.setItem(RATE_KEY, 'USD');
-      if (!state.caches[state.base]) atualizar();
-      else render();
-    });
+}
+
+/** Troca a moeda em edição, convertendo o valor atual. */
+function focarMoeda(codigo) {
+  if (state.foco === codigo) return;
+  const v = converter(quantidadeAtual(), state.foco, codigo);
+  state.foco = codigo;
+  localStorage.setItem(FOCO_KEY, codigo);
+  if (v != null && !Number.isNaN(v)) {
+    state.buffer = formatarValor(v, moedaInfo(codigo)).replace(/\u00a0/g, ' ');
+  }
+  render();
+  const el = app.querySelector(`.valor[data-moeda="${codigo}"]`);
+  if (el) {
+    el.focus();
+    el.select();
+  }
+}
+
+/** Aplica uma tecla do teclado da tela no campo em foco. */
+function aplicarTecla(t) {
+  let b = state.buffer;
+
+  if (t === 'AC') {
+    b = '0';
+  } else if (t === '⌫') {
+    b = b.slice(0, -1);
+    if (b === '' || b === '-') b = '0';
+  } else if (t === ',' || t === '.') {
+    if (!b.includes(',')) b = (b === '' ? '0' : b) + ',';
+  } else {
+    // dígitos e "00"
+    if (b === '0') b = '';
+    b += t;
+  }
+
+  state.buffer = b;
+  render();
+  const el = app.querySelector(`.valor[data-moeda="${state.foco}"]`);
+  if (el) {
+    el.focus();
+    const n = el.value.length;
+    el.setSelectionRange(n, n);
+  }
+}
+
+/** Move o destaque laranja para a linha da moeda em edição. */
+function atualizarRealce() {
+  app.querySelectorAll('.linha').forEach((sec) => {
+    sec.classList.toggle('linha-foco', sec.dataset.linha === state.foco);
   });
+}
 
-  // O botão "voltar para USD" só existe quando a base não é USD.
-  const voltar = app.querySelector('[data-acao="voltar-base"]');
-  if (voltar) voltar.hidden = state.base === 'USD';
-
-  document.documentElement.dataset.offline = state.erro ? 'true' : 'false';
+/** Recalcula e reescreve só os campos que NÃO estão em foco. */
+function atualizarDerivados() {
+  const qtd = quantidadeAtual();
+  for (const moeda of MOEDAS) {
+    if (moeda.codigo === state.foco) continue;
+    const el = app.querySelector(`.valor[data-moeda="${moeda.codigo}"]`);
+    if (!el) continue;
+    const v = converter(qtd, state.foco, moeda.codigo);
+    el.value = v == null ? '' : formatarValor(v, moeda);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -299,19 +397,22 @@ function render() {
 /* ------------------------------------------------------------------ */
 
 if ('serviceWorker' in navigator) {
-  const eraControlada = Boolean(navigator.serviceWorker.controller);
-  navigator.serviceWorker.register('./sw.js').then(() => {
-    // Só recarrega quem já estava controlada: a primeira visita não deve
-    // recarregar sozinha logo após o install.
-    if (eraControlada) window.location.reload();
-  }).catch(() => {
-    // SW não registrado (ex.: arquivo): app segue funcionando online.
+  // Recarrega só quando um SW NOVO assume o controle (atualização de versão).
+  // Antes a página recarregava sozinha a cada abertura, apagando o estado
+  // digitado. Aqui o reload depende de `jaControlada`, então não há laço.
+  const jaControlada = Boolean(navigator.serviceWorker.controller);
+  let recarregando = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!jaControlada || recarregando) return;
+    recarregando = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker.register('./sw.js').catch(() => {
+    // sem SW (ex.: arquivo): o app segue funcionando online
   });
 }
 
 render();
 atualizar();
 setInterval(atualizar, REFRESH_MS);
-
-// Volta a atualizar na hora quando o app volta a ter conexão.
 window.addEventListener('online', () => atualizar());
