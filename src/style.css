@@ -276,6 +276,11 @@ main {
   filter: brightness(0.9);
 }
 
+/* Pequena animação ao tocar, reforçando o retorno visual. */
+.tecla.fn:active {
+  transform: scale(0.96);
+}
+
 .tecla.fn {
   background: var(--laranja-suave);
   color: var(--laranja);
