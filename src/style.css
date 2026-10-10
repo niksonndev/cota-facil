@@ -1,4 +1,6 @@
-:root {
+/* Tema escuro (padrão) */
+:root,
+html[data-tema='escuro'] {
   --bg: #16181d;
   --linha: #23262d;
   --linha-foco: #2b2f38;
@@ -8,6 +10,27 @@
   --borda: #2f333c;
   --tecla: #262a31;
   --tecla-fn: #1f2229;
+  --gap: #111317;
+  --sep: #1c1f25;
+  --bandeira: #2c3038;
+  --rodape: #5a616d;
+}
+
+/* Tema claro */
+html[data-tema='claro'] {
+  --bg: #f4f6fa;
+  --linha: #ffffff;
+  --linha-foco: #eef3ff;
+  --texto: #10141c;
+  --suave: #6b7484;
+  --laranja: #ef8b12;
+  --borda: #e6eaf1;
+  --tecla: #ffffff;
+  --tecla-fn: #eceff5;
+  --gap: #d9dee7;
+  --sep: #e9edf3;
+  --bandeira: #eef1f6;
+  --rodape: #9aa1af;
 }
 
 * {
@@ -41,6 +64,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.5rem;
   padding: 1rem 1rem 0.75rem;
 }
 
@@ -61,25 +85,32 @@ html[data-offline='true'] .status {
   color: #e5a33a;
 }
 
-.btn-atualizar {
+.acoes {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.btn-icone {
   background: var(--linha);
   border: 1px solid var(--borda);
   border-radius: 10px;
   color: var(--texto);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   width: 2.5rem;
   height: 2.5rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
 }
 
-.btn-atualizar:active {
+.btn-icone:active {
   transform: scale(0.94);
 }
 
-.btn-atualizar:disabled {
+.btn-icone:disabled {
   opacity: 0.5;
 }
 
@@ -97,7 +128,7 @@ main {
   gap: 0.75rem;
   padding: 0.7rem 1rem;
   background: var(--linha);
-  border-bottom: 1px solid #1c1f25;
+  border-bottom: 1px solid var(--sep);
   border-left: 3px solid transparent;
   transition: background 0.12s ease;
 }
@@ -128,7 +159,7 @@ main {
   width: 2.1rem;
   height: 2.1rem;
   border-radius: 50%;
-  background: #2c3038;
+  background: var(--bandeira);
   font-size: 1.25rem;
   line-height: 1;
   flex-shrink: 0;
@@ -195,7 +226,8 @@ main {
 }
 
 .valor::placeholder {
-  color: #4a505b;
+  color: var(--suave);
+  opacity: 0.5;
 }
 
 /* Teclado numérico ----------------------------------------------- */
@@ -204,7 +236,7 @@ main {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  background: #111317;
+  background: var(--gap);
   margin-top: auto;
   padding-top: 1px;
 }
@@ -217,11 +249,11 @@ main {
   font-weight: 600;
   padding: 1.05rem 0;
   cursor: pointer;
-  transition: background 0.1s ease;
+  transition: filter 0.1s ease;
 }
 
 .tecla:active {
-  background: #313640;
+  filter: brightness(0.9);
 }
 
 .tecla.fn {
@@ -244,5 +276,5 @@ footer {
 footer p {
   margin: 0;
   font-size: 0.68rem;
-  color: #5a616d;
+  color: var(--rodape);
 }

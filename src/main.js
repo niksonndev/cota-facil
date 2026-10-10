@@ -3,6 +3,7 @@ import './style.css';
 const BASE_URL = 'https://api.coinbase.com/v2/exchange-rates';
 const CACHE_KEY = 'cotafacil:taxas';
 const FOCO_KEY = 'cotafacil:foco';
+const TEMA_KEY = 'cotafacil:tema';
 const REFRESH_MS = 60_000; // um minuto entre atualizações
 
 const SATS_POR_BTC = 100_000_000;
@@ -105,6 +106,8 @@ const state = {
   foco: localStorage.getItem(FOCO_KEY) || 'BRL',
   // Texto bruto que o usuário está digitando no campo em foco.
   buffer: '1',
+  // 'escuro' (padrão) ou 'claro'
+  tema: localStorage.getItem(TEMA_KEY) || 'escuro',
 };
 
 function lerCache() {
@@ -278,9 +281,17 @@ function render() {
         <h1>Cota Fácil</h1>
         <p class="status">${status}</p>
       </div>
-      <button class="btn-atualizar" type="button" data-acao="atualizar" ${state.carregando ? 'disabled' : ''} aria-label="Atualizar">
-        ${state.carregando ? '…' : '↻'}
-      </button>
+      <div class="acoes">
+        <button
+          class="btn-icone"
+          type="button"
+          data-acao="tema"
+          aria-label="${state.tema === 'claro' ? 'Mudar para tema escuro' : 'Mudar para tema claro'}"
+        >${state.tema === 'claro' ? '🌙' : '☀️'}</button>
+        <button class="btn-icone" type="button" data-acao="atualizar" ${state.carregando ? 'disabled' : ''} aria-label="Atualizar">
+          ${state.carregando ? '…' : '↻'}
+        </button>
+      </div>
     </header>
 
     <main>${MOEDAS.map(linhaMoeda).join('')}</main>
@@ -332,6 +343,27 @@ function ligarEventos() {
   app.querySelectorAll('[data-acao="atualizar"]').forEach((btn) => {
     btn.addEventListener('click', () => atualizar());
   });
+
+  app.querySelectorAll('[data-acao="tema"]').forEach((btn) => {
+    btn.addEventListener('click', () => alternarTema());
+  });
+}
+
+/** Aplica o tema no <html> e ajusta a cor da barra do navegador. */
+function aplicarTema() {
+  document.documentElement.dataset.tema = state.tema;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', state.tema === 'claro' ? '#f4f6fa' : '#16181d');
+  }
+}
+
+/** Alterna entre claro e escuro, guardando a escolha. */
+function alternarTema() {
+  state.tema = state.tema === 'claro' ? 'escuro' : 'claro';
+  localStorage.setItem(TEMA_KEY, state.tema);
+  aplicarTema();
+  render();
 }
 
 /** Troca a moeda em edição, convertendo o valor atual. */
@@ -417,6 +449,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+aplicarTema();
 render();
 atualizar();
 setInterval(atualizar, REFRESH_MS);
