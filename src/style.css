@@ -1,36 +1,38 @@
 /* Tema escuro (padrão) */
 :root,
 html[data-tema='escuro'] {
-  --bg: #16181d;
-  --linha: #23262d;
-  --linha-foco: #2b2f38;
-  --texto: #f2f4f7;
-  --suave: #8b919c;
-  --laranja: #ff9f2e;
-  --borda: #2f333c;
-  --tecla: #262a31;
-  --tecla-fn: #1f2229;
-  --gap: #111317;
-  --sep: #1c1f25;
-  --bandeira: #2c3038;
-  --rodape: #5a616d;
+  --bg: #0f1115;
+  --linha: #191c22;
+  --linha-foco: #232833;
+  --texto: #f4f6f9;
+  --suave: #8791a1;
+  --laranja: #f7931a;
+  --laranja-suave: rgba(247, 147, 26, 0.16);
+  --borda: #262a33;
+  --tecla: #1b1f26;
+  --tecla-fn: #14171c;
+  --gap: #0b0d10;
+  --sep: #15181d;
+  --bandeira: #222833;
+  --rodape: #5b6371;
 }
 
 /* Tema claro */
 html[data-tema='claro'] {
-  --bg: #f4f6fa;
+  --bg: #f5f7fb;
   --linha: #ffffff;
-  --linha-foco: #eef3ff;
-  --texto: #10141c;
-  --suave: #6b7484;
-  --laranja: #ef8b12;
-  --borda: #e6eaf1;
+  --linha-foco: #fff6ea;
+  --texto: #131720;
+  --suave: #6b7382;
+  --laranja: #e8820c;
+  --laranja-suave: rgba(232, 130, 12, 0.14);
+  --borda: #e7eaf1;
   --tecla: #ffffff;
-  --tecla-fn: #eceff5;
-  --gap: #d9dee7;
-  --sep: #e9edf3;
+  --tecla-fn: #eef1f6;
+  --gap: #dfe3ea;
+  --sep: #eaeef4;
   --bandeira: #eef1f6;
-  --rodape: #9aa1af;
+  --rodape: #98a0ad;
 }
 
 * {
@@ -45,9 +47,9 @@ body {
   background: var(--bg);
   color: var(--texto);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  min-height: 100vh;
+  height: 100%;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 #app {
@@ -55,7 +57,10 @@ body {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* 100dvh acompanha a barra do navegador no celular; 100vh é o fallback. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 /* Topo ------------------------------------------------------------ */
@@ -120,6 +125,8 @@ main {
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--borda);
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .linha {
@@ -131,11 +138,23 @@ main {
   border-bottom: 1px solid var(--sep);
   border-left: 3px solid transparent;
   transition: background 0.12s ease;
+  /* As linhas dividem a altura livre, então não sobra espaço para rolar. */
+  flex: 1 1 auto;
+  min-height: 3.2rem;
+  overflow: hidden;
 }
 
 .linha-foco {
   background: var(--linha-foco);
   border-left-color: var(--laranja);
+}
+
+.linha-foco .bandeira {
+  box-shadow: 0 0 0 2px var(--laranja-suave);
+}
+
+.linha-foco .nome {
+  color: var(--laranja);
 }
 
 /* Etiqueta da moeda (esquerda) */
@@ -237,8 +256,8 @@ main {
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
   background: var(--gap);
-  margin-top: auto;
   padding-top: 1px;
+  flex: 0 0 auto;
 }
 
 .tecla {
@@ -257,9 +276,10 @@ main {
 }
 
 .tecla.fn {
-  background: var(--tecla-fn);
+  background: var(--laranja-suave);
   color: var(--laranja);
   font-size: 1.3rem;
+  font-weight: 700;
 }
 
 .tecla.largo {
@@ -270,7 +290,8 @@ main {
 
 footer {
   text-align: center;
-  padding: 0.75rem 0.5rem 0;
+  padding: 0.6rem 0.5rem 0.7rem;
+  flex: 0 0 auto;
 }
 
 footer p {
