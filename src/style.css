@@ -124,9 +124,6 @@ html[data-offline='true'] .status {
 main {
   display: flex;
   flex-direction: column;
-  /* Centraliza o bloco de moedas no espaço livre; se ele não couber, a rolagem
-     assume e o "safe" evita cortar o topo. */
-  justify-content: safe center;
   border-top: 1px solid var(--borda);
   flex: 1 1 auto;
   min-height: 0;
