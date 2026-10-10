@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
-const BASE = '/';
+const BASE = '/cota-facil/';
 
 const PATTERN = /\.(?:js|css|html|svg|png|ico|webmanifest|woff2?)$/;
 // sw.js e o manifesto fora do precache (travaria a atualização); 404.html é
