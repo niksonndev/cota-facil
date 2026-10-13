@@ -335,7 +335,47 @@ function tecla(valor, classe = '') {
   return `<button class="tecla ${classe}" type="button" data-tecla="${valor}">${valor}</button>`;
 }
 
+/**
+ * A tela é remontada inteira (innerHTML) a cada tecla e a cada atualização de
+ * minuto, e isso cria um <main> e campos novos: sem devolver a rolagem e o
+ * cursor, a lista voltava ao topo e o campo em edição perdia o foco.
+ */
+function lerTela() {
+  const ativo = document.activeElement;
+  const campo =
+    ativo && app.contains(ativo) && ativo.classList.contains('valor')
+      ? ativo.dataset.moeda
+      : null;
+  const main = app.querySelector('main');
+  return {
+    rolagem: main ? main.scrollTop : 0,
+    campo,
+    inicio: campo ? ativo.selectionStart : null,
+    fim: campo ? ativo.selectionEnd : null,
+  };
+}
+
+function devolverTela(antes) {
+  if (antes.campo) {
+    const el = app.querySelector(`.valor[data-moeda="${antes.campo}"]`);
+    if (el) {
+      el.focus();
+      if (antes.inicio != null) {
+        try {
+          el.setSelectionRange(antes.inicio, antes.fim);
+        } catch {
+          // campo sem suporte a seleção: segue sem cursor
+        }
+      }
+    }
+  }
+  // Por último: o focus() acima pode ter rolado a lista para mostrar o campo.
+  const main = app.querySelector('main');
+  if (main) main.scrollTop = antes.rolagem;
+}
+
 function render() {
+  const tela = lerTela();
   const t = tabelaPrecos();
   const atualizado = t?.atualizadoEm
     ? new Date(t.atualizadoEm).toLocaleTimeString('pt-BR', {
@@ -388,6 +428,7 @@ function render() {
   `;
 
   ligarEventos();
+  devolverTela(tela);
   document.documentElement.dataset.offline = state.erro ? 'true' : 'false';
 }
 
