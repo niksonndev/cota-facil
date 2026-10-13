@@ -17,13 +17,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
 
     <title>Cota Fácil · Bitcoin, Dólar, Real e Guarani</title>
-    <script>
-      // Aplica o tema salvo antes da primeira pintura (evita piscar o tema errado).
-      try {
-        var tema = localStorage.getItem('cotafacil:tema');
-        if (tema) document.documentElement.setAttribute('data-tema', tema);
-      } catch (e) {}
-    </script>
+    <script src="%BASE_URL%tema.js"></script>
   </head>
   <body>
     <div id="app"></div>

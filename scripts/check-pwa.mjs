@@ -135,6 +135,21 @@ if (/%BASE[^_U]/.test(html)) {
   problems.push('index.html com token %BASE% não substituído (use %BASE_URL%)');
 }
 
+// A CSP do index.html usa `script-src 'self'`: script inline é bloqueado pelo
+// navegador sem aviso no build. Era assim que o tema salvo deixava de valer
+// antes da pintura e a tela piscava no tema errado.
+const scripts = [...html.matchAll(/<script\b([^>]*)>/g)].map((m) => m[1]);
+for (const attrs of scripts) {
+  const src = attrs.match(/\bsrc="([^"]+)"/)?.[1];
+  if (!src) {
+    problems.push('index.html com script inline (bloqueado pela CSP)');
+    continue;
+  }
+  if (!src.startsWith('http') && !existsSync(paraDist(src))) {
+    problems.push(`index.html aponta script inexistente: ${src}`);
+  }
+}
+
 const manifestHref = html.match(/rel="manifest"\s+href="([^"]+)"/)?.[1];
 if (manifestHref) {
   if (!manifestHref.startsWith(base)) {
