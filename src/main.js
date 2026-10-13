@@ -241,12 +241,17 @@ async function buscarTaxas(base) {
   const porCodigo = {};
   for (const m of CATALOGO) {
     if (m.codigo === 'SATS') continue; // derivado de BTC
-    const valor = rs[m.codigo];
-    if (valor == null || Number.isNaN(Number(valor))) {
-      throw new Error(`sem taxa de ${m.codigo}`);
-    }
-    porCodigo[m.codigo] = Number(valor);
+    const valor = Number(rs[m.codigo]);
+    // Moeda que sai do ar fica sem valor na tela, mas não derruba a
+    // atualização das outras (antes, uma ausência virava "sem conexão").
+    if (rs[m.codigo] == null || Number.isNaN(valor)) continue;
+    porCodigo[m.codigo] = valor;
   }
+
+  // Sem as moedas que a tabela de preços exige não há o que converter.
+  const faltando = ['USD', 'BRL', 'BTC'].filter((c) => porCodigo[c] == null);
+  if (faltando.length > 0) throw new Error(`resposta sem ${faltando.join(', ')}`);
+
   return { data: porCodigo, atualizadoEm: new Date().toISOString() };
 }
 
