@@ -67,8 +67,19 @@ function formatarBtc(valor) {
   });
 }
 
-/** Satoshi: inteiro, com separador de milhar. */
+/**
+ * Satoshi: inteiro, com separador de milhar. Abaixo de 1 satoshi (1 guarani
+ * vale 0,215 sat) a unidade inteira diria zero e a linha contradiria a do
+ * Bitcoin, que mostra 0,0000000021: aí mostra a fração.
+ */
 function formatarSats(valor) {
+  const abs = Math.abs(valor);
+  if (abs > 0 && abs < 1) {
+    return valor.toLocaleString('pt-BR', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    });
+  }
   return Math.round(valor).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
 
