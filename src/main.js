@@ -1,4 +1,5 @@
 import './style.css';
+import { criarSugestaoInstalacao } from './instalar.js';
 
 const BASE_URL = 'https://api.coinbase.com/v2/exchange-rates';
 const CACHE_KEY = 'cotafacil:taxas';
@@ -417,6 +418,8 @@ function render() {
 
     <main>${moedasAtivas().map(linhaMoeda).join('')}</main>
 
+    ${instalacao.html()}
+
     <div class="teclado">
       ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn')}
       ${tecla('4')}${tecla('5')}${tecla('6')}${tecla('AC', 'fn')}
@@ -518,6 +521,14 @@ function alternarMoeda(codigo) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Instalação (PWA)                                                    */
+/* ------------------------------------------------------------------ */
+
+// A faixa vive dentro do #app (é o render que a monta), mas o estado dela —
+// evento do navegador, dispensa guardada — fica no módulo.
+const instalacao = criarSugestaoInstalacao({ aoMudar: () => render() });
+
+/* ------------------------------------------------------------------ */
 /* Eventos                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -558,6 +569,15 @@ function ligarEventos() {
   // Painel de moedas (vive fora do #app pra não recriar a tela a cada toque)
   app.querySelectorAll('[data-acao="lista-moedas"]').forEach((btn) => {
     btn.addEventListener('click', () => abrirPainel());
+  });
+
+  // Faixa de instalação do PWA (montada no render quando há o que sugerir).
+  app.querySelectorAll('[data-acao="instalar"]').forEach((btn) => {
+    btn.addEventListener('click', () => instalacao.instalar());
+  });
+
+  app.querySelectorAll('[data-acao="dispensar-instalar"]').forEach((btn) => {
+    btn.addEventListener('click', () => instalacao.dispensar());
   });
 }
 
@@ -663,6 +683,7 @@ if ('serviceWorker' in navigator) {
 
 garantirFocoValido();
 aplicarTema();
+instalacao.iniciar();
 render();
 atualizar();
 setInterval(atualizar, REFRESH_MS);

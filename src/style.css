@@ -292,6 +292,75 @@ main {
   grid-column: span 2;
 }
 
+/* Faixa de instalação do PWA -------------------------------------- */
+
+.instalar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--laranja-suave);
+  border-top: 1px solid var(--borda);
+  flex: 0 0 auto;
+}
+
+.instalar-icone {
+  font-size: 1.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.instalar-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.instalar-texto strong {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.instalar-texto small {
+  font-size: 0.7rem;
+  color: var(--suave);
+}
+
+.instalar-btn {
+  flex-shrink: 0;
+  background: var(--laranja);
+  border: none;
+  border-radius: 10px;
+  color: #16181d;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+.instalar-btn:active {
+  transform: scale(0.96);
+}
+
+.instalar-x {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--suave);
+  font-size: 0.95rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.instalar-x:active {
+  background: var(--linha);
+}
+
 /* Rodapé --------------------------------------------------------- */
 
 footer {
