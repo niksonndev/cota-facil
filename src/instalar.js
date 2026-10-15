@@ -61,7 +61,8 @@ export function criarSugestaoInstalacao({ aoMudar }) {
   let instalado = estaInstalado();
 
   const dispensadoPoucoTempoAtras = () =>
-    dispensadoEm > 0 && Date.now() - dispensadoEm < DIAS_ATE_VOLTAR * MS_POR_DIA;
+    dispensadoEm > 0 &&
+    Date.now() - dispensadoEm < DIAS_ATE_VOLTAR * MS_POR_DIA;
 
   /** 'prompt' (há botão), 'ios' (dica manual) ou 'oculto' (nada a sugerir). */
   function modo() {

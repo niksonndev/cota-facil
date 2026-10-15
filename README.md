@@ -28,10 +28,15 @@ então no celular o teclado do sistema não atrapalha.
 
 ```bash
 pnpm install
-pnpm dev        # desenvolvimento
-pnpm build      # gera o dist/ pronto para publicar
-pnpm check-pwa  # valida manifest, ícones e precache do service worker
+pnpm dev          # desenvolvimento
+pnpm build        # gera o dist/ pronto para publicar
+pnpm check-pwa    # valida manifest, ícones e precache do service worker
+pnpm format       # formata tudo com prettier
+pnpm format:check # só confere a formatação (é o que o CI roda)
 ```
+
+O `.prettierrc` acompanha o estilo do código: aspas simples, vírgula final em
+toda lista (`trailingComma: all`, o padrão do Prettier 3) e 80 colunas.
 
 ## Deploy
 

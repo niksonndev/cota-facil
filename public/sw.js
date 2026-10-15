@@ -40,7 +40,8 @@ async function activeCache() {
 
 async function precache() {
   const response = await fetch(scopeUrl(MANIFEST_URL), { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Manifesto indisponível (${response.status})`);
+  if (!response.ok)
+    throw new Error(`Manifesto indisponível (${response.status})`);
 
   const { version, assets } = await response.json();
   const cacheName = `${CACHE_PREFIX}-${version}`;
@@ -159,7 +160,10 @@ async function staleWhileRevalidate(request) {
   const response = await network;
   return (
     response ||
-    new Response('', { status: 504, statusText: 'Offline e sem cópia em cache' })
+    new Response('', {
+      status: 504,
+      statusText: 'Offline e sem cópia em cache',
+    })
   );
 }
 

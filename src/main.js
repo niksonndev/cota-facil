@@ -16,21 +16,143 @@ const SATS_POR_BTC = 100_000_000;
  * como ARS e PYG, mostram inteiro).
  */
 const CATALOGO = [
-  { codigo: 'BTC', nome: 'Bitcoin', rotulo: 'BTC', simbolo: '₿', bandeira: '₿', tipo: 'btc', casas: 2, btc: true },
-  { codigo: 'SATS', nome: 'Bitcoin (Satoshi)', rotulo: 'SATS', simbolo: 'sat', bandeira: '⚡', tipo: 'sats', casas: 0, btc: false },
-  { codigo: 'USD', nome: 'Dólar americano', rotulo: 'USD', simbolo: '$', bandeira: '🇺🇸', tipo: 'fiat', casas: 2 },
-  { codigo: 'EUR', nome: 'Euro', rotulo: 'EUR', simbolo: '€', bandeira: '🇪🇺', tipo: 'fiat', casas: 2 },
-  { codigo: 'BRL', nome: 'Real brasileiro', rotulo: 'BRL', simbolo: 'R$', bandeira: '🇧🇷', tipo: 'fiat', casas: 2 },
-  { codigo: 'GBP', nome: 'Libra esterlina', rotulo: 'GBP', simbolo: '£', bandeira: '🇬🇧', tipo: 'fiat', casas: 2 },
-  { codigo: 'ARS', nome: 'Peso argentino', rotulo: 'ARS', simbolo: '$', bandeira: '🇦🇷', tipo: 'fiat', casas: 0 },
-  { codigo: 'MXN', nome: 'Peso mexicano', rotulo: 'MXN', simbolo: '$', bandeira: '🇲🇽', tipo: 'fiat', casas: 2 },
-  { codigo: 'PYG', nome: 'Guarani paraguaio', rotulo: 'PYG', simbolo: '₲', bandeira: '🇵🇾', tipo: 'fiat', casas: 0 },
-  { codigo: 'UYU', nome: 'Peso uruguaio', rotulo: 'UYU', simbolo: '$', bandeira: '🇺🇾', tipo: 'fiat', casas: 2 },
-  { codigo: 'CLP', nome: 'Peso chileno', rotulo: 'CLP', simbolo: '$', bandeira: '🇨🇱', tipo: 'fiat', casas: 0 },
-  { codigo: 'CAD', nome: 'Dólar canadense', rotulo: 'CAD', simbolo: '$', bandeira: '🇨🇦', tipo: 'fiat', casas: 2 },
-  { codigo: 'JPY', nome: 'Iene japonês', rotulo: 'JPY', simbolo: '¥', bandeira: '🇯🇵', tipo: 'fiat', casas: 0 },
-  { codigo: 'CHF', nome: 'Franco suíço', rotulo: 'CHF', simbolo: 'Fr', bandeira: '🇨🇭', tipo: 'fiat', casas: 2 },
-  { codigo: 'CNY', nome: 'Yuan chinês', rotulo: 'CNY', simbolo: '¥', bandeira: '🇨🇳', tipo: 'fiat', casas: 2 },
+  {
+    codigo: 'BTC',
+    nome: 'Bitcoin',
+    rotulo: 'BTC',
+    simbolo: '₿',
+    bandeira: '₿',
+    tipo: 'btc',
+    casas: 2,
+    btc: true,
+  },
+  {
+    codigo: 'SATS',
+    nome: 'Bitcoin (Satoshi)',
+    rotulo: 'SATS',
+    simbolo: 'sat',
+    bandeira: '⚡',
+    tipo: 'sats',
+    casas: 0,
+    btc: false,
+  },
+  {
+    codigo: 'USD',
+    nome: 'Dólar americano',
+    rotulo: 'USD',
+    simbolo: '$',
+    bandeira: '🇺🇸',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'EUR',
+    nome: 'Euro',
+    rotulo: 'EUR',
+    simbolo: '€',
+    bandeira: '🇪🇺',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'BRL',
+    nome: 'Real brasileiro',
+    rotulo: 'BRL',
+    simbolo: 'R$',
+    bandeira: '🇧🇷',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'GBP',
+    nome: 'Libra esterlina',
+    rotulo: 'GBP',
+    simbolo: '£',
+    bandeira: '🇬🇧',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'ARS',
+    nome: 'Peso argentino',
+    rotulo: 'ARS',
+    simbolo: '$',
+    bandeira: '🇦🇷',
+    tipo: 'fiat',
+    casas: 0,
+  },
+  {
+    codigo: 'MXN',
+    nome: 'Peso mexicano',
+    rotulo: 'MXN',
+    simbolo: '$',
+    bandeira: '🇲🇽',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'PYG',
+    nome: 'Guarani paraguaio',
+    rotulo: 'PYG',
+    simbolo: '₲',
+    bandeira: '🇵🇾',
+    tipo: 'fiat',
+    casas: 0,
+  },
+  {
+    codigo: 'UYU',
+    nome: 'Peso uruguaio',
+    rotulo: 'UYU',
+    simbolo: '$',
+    bandeira: '🇺🇾',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'CLP',
+    nome: 'Peso chileno',
+    rotulo: 'CLP',
+    simbolo: '$',
+    bandeira: '🇨🇱',
+    tipo: 'fiat',
+    casas: 0,
+  },
+  {
+    codigo: 'CAD',
+    nome: 'Dólar canadense',
+    rotulo: 'CAD',
+    simbolo: '$',
+    bandeira: '🇨🇦',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'JPY',
+    nome: 'Iene japonês',
+    rotulo: 'JPY',
+    simbolo: '¥',
+    bandeira: '🇯🇵',
+    tipo: 'fiat',
+    casas: 0,
+  },
+  {
+    codigo: 'CHF',
+    nome: 'Franco suíço',
+    rotulo: 'CHF',
+    simbolo: 'Fr',
+    bandeira: '🇨🇭',
+    tipo: 'fiat',
+    casas: 2,
+  },
+  {
+    codigo: 'CNY',
+    nome: 'Yuan chinês',
+    rotulo: 'CNY',
+    simbolo: '¥',
+    bandeira: '🇨🇳',
+    tipo: 'fiat',
+    casas: 2,
+  },
 ];
 
 /** Moedas escolhidas pelo usuário (ordem exibida). */
@@ -81,7 +203,9 @@ function formatarSats(valor) {
       maximumFractionDigits: 3,
     });
   }
-  return Math.round(valor).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  return Math.round(valor).toLocaleString('pt-BR', {
+    maximumFractionDigits: 0,
+  });
 }
 
 /** Fiat: N casas, sem símbolo (o símbolo fica na etiqueta da linha). */
@@ -116,7 +240,10 @@ function parseNumero(texto) {
 }
 
 function escapeAttr(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
 }
 
 function escapeHtml(s) {
@@ -170,7 +297,9 @@ function salvarMoedas() {
 
 /** Objetos do catálogo correspondentes à seleção atual. */
 function moedasAtivas() {
-  return state.moedas.map((c) => CATALOGO.find((m) => m.codigo === c)).filter(Boolean);
+  return state.moedas
+    .map((c) => CATALOGO.find((m) => m.codigo === c))
+    .filter(Boolean);
 }
 
 /** Garante que a moeda em foco ainda está na lista de moedas exibidas. */
@@ -262,7 +391,8 @@ async function buscarTaxas(base) {
 
   // Sem as moedas que a tabela de preços exige não há o que converter.
   const faltando = ['USD', 'BRL', 'BTC'].filter((c) => porCodigo[c] == null);
-  if (faltando.length > 0) throw new Error(`resposta sem ${faltando.join(', ')}`);
+  if (faltando.length > 0)
+    throw new Error(`resposta sem ${faltando.join(', ')}`);
 
   return { data: porCodigo, atualizadoEm: new Date().toISOString() };
 }
@@ -586,7 +716,10 @@ function aplicarTema() {
   document.documentElement.dataset.tema = state.tema;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute('content', state.tema === 'claro' ? '#f4f6fa' : '#16181d');
+    meta.setAttribute(
+      'content',
+      state.tema === 'claro' ? '#f4f6fa' : '#16181d',
+    );
   }
 }
 

@@ -49,7 +49,8 @@ for (const file of [
   'manifest.webmanifest',
   'precache-manifest.json',
 ]) {
-  if (!existsSync(join(DIST, file))) problems.push(`faltando no build: ${file}`);
+  if (!existsSync(join(DIST, file)))
+    problems.push(`faltando no build: ${file}`);
 }
 
 // 2. Manifest: campos exigidos para o navegador oferecer a instalação
@@ -59,7 +60,9 @@ if (manifest) {
     if (!manifest[field]) problems.push(`manifest sem "${field}"`);
   }
   if (manifest.display !== 'standalone') {
-    problems.push(`manifest.display é "${manifest.display}" (esperado standalone)`);
+    problems.push(
+      `manifest.display é "${manifest.display}" (esperado standalone)`,
+    );
   }
 
   // start_url/scope relativos: é o que faz o app funcionar tanto na raiz quanto
@@ -69,7 +72,9 @@ if (manifest) {
   for (const field of ['start_url', 'scope']) {
     const valor = String(manifest[field] ?? '');
     if (valor.startsWith('/')) {
-      problems.push(`manifest.${field} absoluto ("${valor}") em vez de relativo`);
+      problems.push(
+        `manifest.${field} absoluto ("${valor}") em vez de relativo`,
+      );
     }
   }
 
@@ -158,7 +163,9 @@ if (manifestHref) {
     );
   }
   if (!existsSync(paraDist(manifestHref))) {
-    problems.push(`index.html aponta para manifest inexistente: ${manifestHref}`);
+    problems.push(
+      `index.html aponta para manifest inexistente: ${manifestHref}`,
+    );
   }
 }
 
