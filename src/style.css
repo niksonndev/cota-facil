@@ -171,6 +171,10 @@ main {
   cursor: pointer;
   flex-shrink: 0;
   min-width: 8rem;
+  /* <button> usa preto como cor padrão do navegador: no tema escuro as siglas
+     (BTC, USD, BRL…) sumiam contra o fundo escuro, e o tema claro só disfarçava
+     o problema porque o texto preto lá funciona por acaso. */
+  color: inherit;
 }
 
 .bandeira {

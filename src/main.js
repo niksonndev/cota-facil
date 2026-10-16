@@ -122,6 +122,58 @@ function parseNumero(texto) {
   return Number.parseFloat(limpo);
 }
 
+/**
+ * Limpa o que veio da tela ou do teclado físico para o buffer interno:
+ * só dígitos e no máximo uma vírgula. Ponto que claramente é decimal
+ * (seguido de até dois dígitos no fim) vira vírgula; ponto de milhar é
+ * largado — o agrupamento é recalculado na exibição.
+ */
+function normalizarEntrada(texto) {
+  let b = String(texto).replace(/[^\d.,]/g, '');
+  b = b.replace(/\.(?=\d{1,2}(?:\D|$))/g, ','); // ponto decimal (desktop)
+  b = b.replace(/\./g, '');
+  const primeira = b.indexOf(',');
+  if (primeira >= 0) {
+    // vírgulas extras (digitação rápida) somem; a primeira manda
+    b = b.slice(0, primeira + 1) + b.slice(primeira + 1).replace(/,/g, '');
+  }
+  return b;
+}
+
+/**
+ * Formatação ao vivo do buffer para o campo em edição: pontos de milhar
+ * quando a parte inteira passa de 3 dígitos e a vírgula "aberta" enquanto a
+ * fração ainda não foi digitada — "1234567,5" aparece como "1.234.567,5".
+ */
+function formatarDigitando(texto) {
+  if (!texto) return '';
+  const [inteira, decimal] = texto.split(',');
+  let inteiro = inteira.replace(/\./g, '');
+  if (inteiro.length > 3) {
+    inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  return decimal != null ? `${inteiro},${decimal}` : inteiro;
+}
+
+/**
+ * Posição do cursor no texto reformatado a partir da posição no texto antigo:
+ * conta quantos dígitos/vírgulas havia à esquerda e procura essa mesma
+ * quantidade no novo, para digitar com teclado físico sem o cursor fugir.
+ */
+function posicaoCursor(antigo, novo, antes) {
+  if (antes == null) return null;
+  const alvo = (antigo.slice(0, antes).match(/[\d,]/g) || []).length;
+  if (alvo === 0) return 0;
+  let conta = 0;
+  for (let i = 0; i < novo.length; i++) {
+    if (/[\d,]/.test(novo[i])) {
+      conta++;
+      if (conta === alvo) return i + 1;
+    }
+  }
+  return novo.length;
+}
+
 function escapeAttr(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -337,7 +389,7 @@ function linhaMoeda(moeda) {
           autocomplete="off"
           spellcheck="false"
           data-moeda="${moeda.codigo}"
-          value="${escapeAttr(valorTexto)}"
+          value="${escapeAttr(ehFoco ? formatarDigitando(state.buffer) : valorTexto)}"
           aria-label="${moeda.nome}"
         />
       </div>
@@ -363,6 +415,9 @@ function lerTela() {
   const main = app.querySelector('main');
   return {
     rolagem: main ? main.scrollTop : 0,
+    // O window pode rolar sozinho no celular durante a remontagem; sem guardar
+    // a posição, a página descia e o teclado ficava fora da tela.
+    janela: { x: window.scrollX, y: window.scrollY },
     campo,
     inicio: campo ? ativo.selectionStart : null,
     fim: campo ? ativo.selectionEnd : null,
@@ -370,6 +425,9 @@ function lerTela() {
 }
 
 function devolverTela(antes) {
+  if (window.scrollX !== antes.janela.x || window.scrollY !== antes.janela.y) {
+    window.scrollTo(antes.janela.x, antes.janela.y);
+  }
   if (antes.campo) {
     const el = app.querySelector(`.valor[data-moeda="${antes.campo}"]`);
     if (el) {
@@ -436,8 +494,8 @@ function render() {
     <div class="teclado">
       ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn')}
       ${tecla('4')}${tecla('5')}${tecla('6')}${tecla('AC', 'fn')}
-      ${tecla('1')}${tecla('2')}${tecla('3')}${tecla(',', 'fn')}
-      ${tecla('00')}${tecla('0')}${tecla('.', 'fn largo')}
+      ${tecla('1')}${tecla('2')}${tecla('3')}${tecla('00')}
+      ${tecla('0', 'largo')}${tecla(',', 'fn largo')}
     </div>
 
     <footer><p>Fonte: Coinbase · atualiza a cada minuto</p></footer>
@@ -558,9 +616,25 @@ function ligarEventos() {
       if (state.foco !== moeda) focarMoeda(moeda);
     });
     input.addEventListener('input', () => {
+      // Digitar direto no campo (teclado físico) também formata ao vivo.
+      const caret = input.selectionStart;
+      const bruto = normalizarEntrada(input.value);
+      const formatado = formatarDigitando(bruto);
       state.foco = moeda;
       localStorage.setItem(FOCO_KEY, moeda);
-      state.buffer = input.value;
+      state.buffer = bruto;
+      if (formatado !== input.value) {
+        const antigo = input.value;
+        input.value = formatado;
+        const pos = posicaoCursor(antigo, formatado, caret);
+        if (pos != null) {
+          try {
+            input.setSelectionRange(pos, pos);
+          } catch {
+            // campo sem suporte a seleção: segue sem cursor
+          }
+        }
+      }
       atualizarRealce();
       atualizarDerivados();
     });
@@ -610,8 +684,20 @@ function aplicarTema() {
 function alternarTema() {
   state.tema = state.tema === 'claro' ? 'escuro' : 'claro';
   localStorage.setItem(TEMA_KEY, state.tema);
+  // As cores vivem em variáveis CSS no <html>, então trocar o atributo basta.
+  // Remontar a página inteira aqui (render()) fazia o navegador reorganizar o
+  // layout — no celular o teclado numérico acabava empurrado para baixo.
   aplicarTema();
-  render();
+  // Reflete o novo estado no botão da barra; o próximo render já nasce certo.
+  document.querySelectorAll('[data-acao="tema"]').forEach((btn) => {
+    btn.textContent = state.tema === 'claro' ? '🌙' : '☀️';
+    btn.setAttribute(
+      'aria-label',
+      state.tema === 'claro'
+        ? 'Mudar para tema escuro'
+        : 'Mudar para tema claro',
+    );
+  });
 }
 
 /** Troca a moeda em edição, convertendo o valor atual. */
@@ -621,7 +707,9 @@ function focarMoeda(codigo) {
   state.foco = codigo;
   localStorage.setItem(FOCO_KEY, codigo);
   if (v != null && !Number.isNaN(v)) {
-    state.buffer = formatarValor(v, moedaInfo(codigo)).replace(/\u00a0/g, ' ');
+    // O valor formatado (pt-BR, com pontos de milhar) volta pro buffer cru:
+    // normalizarEntrada guarda só dígitos e vírgula; a exibição re-agrupa.
+    state.buffer = normalizarEntrada(formatarValor(v, moedaInfo(codigo)));
   }
   render();
   const el = app.querySelector(`.valor[data-moeda="${codigo}"]`);
@@ -633,14 +721,14 @@ function focarMoeda(codigo) {
 
 /** Aplica uma tecla do teclado da tela no campo em foco. */
 function aplicarTecla(t) {
-  let b = state.buffer;
+  let b = normalizarEntrada(state.buffer);
 
   if (t === 'AC') {
     b = '0';
   } else if (t === '⌫') {
     b = b.slice(0, -1);
     if (b === '' || b === '-') b = '0';
-  } else if (t === ',' || t === '.') {
+  } else if (t === ',') {
     if (!b.includes(',')) b = (b === '' ? '0' : b) + ',';
   } else {
     // dígitos e "00"
