@@ -25,6 +25,13 @@ test('normalizarEntrada deixa só dígitos e uma vírgula', () => {
   assert.equal(normalizarEntrada('1.234'), '1234');
 });
 
+test('normalizarEntrada remove zeros à esquerda', () => {
+  assert.equal(normalizarEntrada('005'), '5');
+  assert.equal(normalizarEntrada('00'), '0');
+  assert.equal(normalizarEntrada('00,5'), '0,5');
+  assert.equal(normalizarEntrada('00.007'), '7');
+});
+
 test('formatarDigitando agrupa milhares e preserva a vírgula aberta', () => {
   assert.equal(formatarDigitando('1234567,5'), '1.234.567,5');
   assert.equal(formatarDigitando('1234'), '1.234');

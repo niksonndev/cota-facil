@@ -17,7 +17,9 @@ export function tabelaDeTaxas(dados) {
     if (codigo === 'SATS') continue;
     if (dados[codigo] == null) continue;
     const valor = Number(dados[codigo]);
-    if (!Number.isFinite(valor)) continue;
+    // Zero, negativo, Infinity e NaN não são cotação: aceitá-los produzia
+    // divisão por zero (∞) ou valores negativos com cara de atualizados.
+    if (!Number.isFinite(valor) || valor <= 0) continue;
     taxa[codigo] = valor;
   }
 
@@ -31,7 +33,7 @@ export function converter(qtd, de, para, taxa) {
   if (!Number.isFinite(qtd)) return null;
   if (de === para) return qtd;
   if (!taxa) return null;
-  if (taxa[de] == null || taxa[para] == null) return null;
+  if (!(taxa[de] > 0) || !(taxa[para] > 0)) return null;
 
   const valor = (qtd / taxa[de]) * taxa[para];
   return Number.isFinite(valor) ? valor : null;

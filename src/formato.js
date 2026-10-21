@@ -76,7 +76,12 @@ export function normalizarEntrada(texto) {
     // vírgulas extras (digitação rápida) somem; a primeira manda
     b = b.slice(0, primeira + 1) + b.slice(primeira + 1).replace(/,/g, '');
   }
-  return b;
+  // "005" e "000,7" são o mesmo que "5" e "0,7": zero à esquerda só
+  // enganava a leitura do valor.
+  b = b.replace(/^0+(?=\d)/, '');
+  // Um valor absurdamente longo não tem uso e pode virar Infinity ao ser
+  // interpretado; 24 caracteres cabem em qualquer montante realista.
+  return b.slice(0, 24);
 }
 
 /**

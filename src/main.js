@@ -194,7 +194,8 @@ async function buscarTaxas(base) {
     const valor = Number(rs[m.codigo]);
     // Moeda que sai do ar fica sem valor na tela, mas não derruba a
     // atualização das outras (antes, uma ausência virava "sem conexão").
-    if (rs[m.codigo] == null || Number.isNaN(valor)) continue;
+    // Taxa zero, negativa ou não finita também é ausência de cotação.
+    if (!Number.isFinite(valor) || valor <= 0) continue;
     porCodigo[m.codigo] = valor;
   }
 
@@ -215,7 +216,14 @@ async function atualizar() {
     // Base fixa em USD: a tabela de preços é sempre relativa a USD, então o
     // campo em edição do usuário não interfere na busca.
     const { data, atualizadoEm } = await buscarTaxas('USD');
-    state.caches.USD = { data, atualizadoEm };
+    // A API pode omitir uma moeda temporariamente. Mantém a última cotação
+    // conhecida em vez de apagar a linha e transformar a ausência em "sem
+    // conexão"; moedas presentes na resposta continuam sendo atualizadas.
+    const anteriores = state.caches.USD?.data || {};
+    state.caches.USD = {
+      data: { ...anteriores, ...data },
+      atualizadoEm,
+    };
     salvarCache(state.caches);
   } catch (e) {
     state.erro = e.message || String(e);

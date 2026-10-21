@@ -23,6 +23,23 @@ test('tabelaDeTaxas exige as moedas obrigatórias', () => {
   assert.equal(tabelaDeTaxas('x'), null);
 });
 
+test('tabelaDeTaxas ignora cotações zero, negativas ou não finitas', () => {
+  const taxa = tabelaDeTaxas({
+    ...DADOS,
+    BRL: 0,
+    EUR: -1,
+    PYG: Number.POSITIVE_INFINITY,
+  });
+  assert.equal(taxa, null);
+  assert.ok(tabelaDeTaxas({ ...DADOS, EUR: -1 })?.EUR == null);
+  assert.ok(tabelaDeTaxas({ ...DADOS, EUR: 0 })?.EUR == null);
+});
+
+test('converter recusa tabela com taxa zero', () => {
+  assert.equal(converter(1, 'USD', 'BRL', { USD: 1, BRL: 0 }), null);
+  assert.equal(converter(1, 'BRL', 'USD', { USD: 1, BRL: 0 }), null);
+});
+
 test('converter usa a base USD e preserva o valor exato', () => {
   const taxa = tabelaDeTaxas(DADOS);
   assert.equal(converter(10, 'BRL', 'USD', taxa), 2);
