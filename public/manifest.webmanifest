@@ -1,7 +1,7 @@
 {
   "name": "Cota Fácil",
   "short_name": "Cota Fácil",
-  "description": "Cotação de Bitcoin (inteiro e Satoshi), dólar americano, real brasileiro e guarani paraguaio.",
+  "description": "Conversor de Bitcoin (BTC e satoshi), dólar, real, guarani e outras moedas, com cotações atualizadas e modo offline.",
   "lang": "pt-BR",
   "start_url": ".",
   "scope": ".",
