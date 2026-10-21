@@ -9,6 +9,7 @@ import {
 import { converter, tabelaDeTaxas } from './conversao.js';
 import {
   formatarDigitando,
+  formatarQuando,
   formatarValor,
   normalizarEntrada,
   parseNumero,
@@ -179,9 +180,10 @@ function trocarFoco(codigo) {
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
 
-async function buscarTaxas(base) {
+async function buscarTaxas(base, signal) {
   const resposta = await fetch(`${BASE_URL}?currency=${base}`, {
     cache: 'no-store',
+    signal,
   });
   if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
   const json = await resposta.json();
@@ -207,30 +209,55 @@ async function buscarTaxas(base) {
   return { data: porCodigo, atualizadoEm: new Date().toISOString() };
 }
 
-async function atualizar() {
+const TIMEOUT_API_MS = 10_000;
+let requisicaoAtual = null;
+
+function atualizar() {
+  // Um clique no ↻, o intervalo e o evento online podem coincidir; todos
+  // reaproveitam a mesma requisição em vez de disparar chamadas concorrentes.
+  if (requisicaoAtual) return requisicaoAtual;
+
+  if (!navigator.onLine) {
+    state.erro = 'offline';
+    render();
+    return Promise.resolve();
+  }
+
   state.carregando = true;
   state.erro = null;
   render();
 
-  try {
-    // Base fixa em USD: a tabela de preços é sempre relativa a USD, então o
-    // campo em edição do usuário não interfere na busca.
-    const { data, atualizadoEm } = await buscarTaxas('USD');
-    // A API pode omitir uma moeda temporariamente. Mantém a última cotação
-    // conhecida em vez de apagar a linha e transformar a ausência em "sem
-    // conexão"; moedas presentes na resposta continuam sendo atualizadas.
-    const anteriores = state.caches.USD?.data || {};
-    state.caches.USD = {
-      data: { ...anteriores, ...data },
-      atualizadoEm,
-    };
-    salvarCache(state.caches);
-  } catch (e) {
-    state.erro = e.message || String(e);
-  } finally {
-    state.carregando = false;
-    render();
-  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_API_MS);
+
+  requisicaoAtual = (async () => {
+    try {
+      // Base fixa em USD: a tabela de preços é sempre relativa a USD, então o
+      // campo em edição do usuário não interfere na busca.
+      const { data, atualizadoEm } = await buscarTaxas(
+        'USD',
+        controller.signal,
+      );
+      // A API pode omitir uma moeda temporariamente. Mantém a última cotação
+      // conhecida em vez de apagar a linha e transformar a ausência em "sem
+      // conexão"; moedas presentes na resposta continuam sendo atualizadas.
+      const anteriores = state.caches.USD?.data || {};
+      state.caches.USD = {
+        data: { ...anteriores, ...data },
+        atualizadoEm,
+      };
+      salvarCache(state.caches);
+    } catch (e) {
+      state.erro = e.message || String(e);
+    } finally {
+      clearTimeout(timer);
+      state.carregando = false;
+      requisicaoAtual = null;
+      render();
+    }
+  })();
+
+  return requisicaoAtual;
 }
 
 /* ------------------------------------------------------------------ */
@@ -329,21 +356,24 @@ function devolverTela(antes) {
   if (main) main.scrollTop = antes.rolagem;
 }
 
+function textoStatus() {
+  const quando = tabelaPrecos()?.atualizadoEm;
+  const salvo = quando ? `salvo ${formatarQuando(quando)}` : null;
+
+  if (state.erro && !salvo) return 'sem conexão · sem dados salvos';
+  if (state.erro) {
+    const motivo =
+      navigator.onLine === false ? 'sem conexão' : 'não foi possível atualizar';
+    return `${motivo} · ${salvo}`;
+  }
+  if (state.carregando && !salvo) return 'buscando cotações…';
+  if (salvo) return `atualizado ${formatarQuando(quando)}`;
+  return 'sem cotações';
+}
+
 function render() {
   const tela = lerTela();
-  const t = tabelaPrecos();
-  const atualizado = t?.atualizadoEm
-    ? new Date(t.atualizadoEm).toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : '—';
-
-  const status = state.carregando
-    ? 'atualizando…'
-    : state.erro
-      ? `sem conexão · salvo às ${atualizado}`
-      : `atualizado às ${atualizado}`;
+  const status = textoStatus();
 
   app.innerHTML = `
     <header class="topo">
@@ -668,5 +698,13 @@ aplicarTema();
 instalacao.iniciar();
 render();
 atualizar();
-setInterval(atualizar, REFRESH_MS);
+const atualizarSeVisivel = () => {
+  if (!document.hidden) atualizar();
+};
+setInterval(atualizarSeVisivel, REFRESH_MS);
+document.addEventListener('visibilitychange', atualizarSeVisivel);
 window.addEventListener('online', () => atualizar());
+window.addEventListener('offline', () => {
+  state.erro = 'offline';
+  render();
+});

@@ -4,6 +4,7 @@ import {
   formatarBtc,
   formatarDigitando,
   formatarFiat,
+  formatarQuando,
   formatarSats,
   formatarValor,
   normalizarEntrada,
@@ -66,4 +67,21 @@ test('formatarValor escolhe pelo tipo da moeda', () => {
   assert.equal(formatarValor(0.5, { tipo: 'btc' }), '0,50000000');
   assert.equal(formatarValor(2.5, { tipo: 'sats' }), '3');
   assert.equal(formatarValor(2.5, { tipo: 'fiat', casas: 2 }), '2,50');
+});
+
+test('formatarQuando mostra hora, data e ano só quando precisa', () => {
+  const agora = new Date(2026, 9, 21, 16, 30);
+  assert.equal(
+    formatarQuando(new Date(2026, 9, 21, 16, 15).toISOString(), agora),
+    'às 16:15',
+  );
+  assert.equal(
+    formatarQuando(new Date(2026, 9, 20, 9, 5).toISOString(), agora),
+    '20/10 às 09:05',
+  );
+  assert.equal(
+    formatarQuando(new Date(2025, 9, 20, 9, 5).toISOString(), agora),
+    '20/10/2025 às 09:05',
+  );
+  assert.equal(formatarQuando('não é data', agora), '—');
 });

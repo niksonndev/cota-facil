@@ -34,6 +34,32 @@ export function formatarSats(valor) {
   });
 }
 
+/**
+ * Texto curto para "quando isto foi atualizado". No mesmo dia mostra só a
+ * hora; em outro dia inclui a data, e o ano só quando for diferente.
+ */
+export function formatarQuando(iso, agora = new Date()) {
+  const data = new Date(iso);
+  if (Number.isNaN(data.getTime())) return '—';
+
+  const hora = data.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const mesmoDia =
+    data.getFullYear() === agora.getFullYear() &&
+    data.getMonth() === agora.getMonth() &&
+    data.getDate() === agora.getDate();
+  if (mesmoDia) return `às ${hora}`;
+
+  const dia = data.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+  const mesmoAno = data.getFullYear() === agora.getFullYear();
+  return `${dia}${mesmoAno ? '' : `/${data.getFullYear()}`} às ${hora}`;
+}
+
 /** Fiat: N casas, sem símbolo (o símbolo fica na etiqueta da linha). */
 export function formatarFiat(valor, casas) {
   return valor.toLocaleString('pt-BR', {
