@@ -47,6 +47,22 @@ function escapeAttr(s) {
     .replace(/</g, '&lt;');
 }
 
+function lerPreferencia(chave, padrao) {
+  try {
+    return localStorage.getItem(chave) || padrao;
+  } catch {
+    return padrao; // armazenamento bloqueado: usa o padrão
+  }
+}
+
+function salvarPreferencia(chave, valor) {
+  try {
+    localStorage.setItem(chave, valor);
+  } catch {
+    // modo privado/cheio: segue sem persistir
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Estado                                                              */
 /* ------------------------------------------------------------------ */
@@ -56,14 +72,14 @@ const state = {
   carregando: true,
   erro: null,
   // Moeda do campo em edição; as demais são derivadas dela.
-  foco: localStorage.getItem(FOCO_KEY) || 'BRL',
+  foco: lerPreferencia(FOCO_KEY, 'BRL'),
   // Quantidade exata na moeda em foco. O buffer é só a representação exibida:
   // trocar de moeda não pode arredondar o valor de verdade (ver trocarFoco).
   valor: 1,
   // Texto bruto que o usuário está digitando no campo em foco.
   buffer: '1',
   // 'escuro' (padrão) ou 'claro'
-  tema: localStorage.getItem(TEMA_KEY) || 'escuro',
+  tema: lerPreferencia(TEMA_KEY, 'escuro'),
   // Códigos das moedas exibidas, na ordem escolhida.
   moedas: lerMoedas(),
   // Lista de seleção aberta?
@@ -164,7 +180,7 @@ function trocarFoco(codigo) {
   }
   state.foco = codigo;
   state.buffer = bufferDoValor(state.valor, alvo);
-  localStorage.setItem(FOCO_KEY, codigo);
+  salvarPreferencia(FOCO_KEY, codigo);
 }
 
 /* ------------------------------------------------------------------ */
@@ -374,7 +390,7 @@ function render() {
           data-acao="tema"
           aria-label="${state.tema === 'claro' ? 'Mudar para tema escuro' : 'Mudar para tema claro'}"
         >${state.tema === 'claro' ? '🌙' : '☀️'}</button>
-        <button class="btn-icone" type="button" data-acao="atualizar" ${state.carregando ? 'disabled' : ''} aria-label="Atualizar cotações agora">
+        <button class="btn-icone" type="button" data-acao="atualizar" ${state.carregando ? 'disabled' : ''} aria-label="Atualizar cotações agora" aria-busy="${state.carregando}">
           ${state.carregando ? '…' : '↻'}
         </button>
       </div>
@@ -604,7 +620,7 @@ function ligarEventos() {
     const bruto = normalizarEntrada(input.value);
     const formatado = formatarDigitando(bruto);
     state.foco = input.dataset.moeda;
-    localStorage.setItem(FOCO_KEY, state.foco);
+    salvarPreferencia(FOCO_KEY, state.foco);
     state.buffer = bruto;
     state.valor = valorDoBuffer(bruto);
     if (formatado !== input.value) {
@@ -639,7 +655,7 @@ function aplicarTema() {
 /** Alterna entre claro e escuro, guardando a escolha. */
 function alternarTema() {
   state.tema = state.tema === 'claro' ? 'escuro' : 'claro';
-  localStorage.setItem(TEMA_KEY, state.tema);
+  salvarPreferencia(TEMA_KEY, state.tema);
   // As cores vivem em variáveis CSS no <html>, então trocar o atributo basta.
   // Remontar a página inteira aqui (render()) fazia o navegador reorganizar o
   // layout — no celular o teclado numérico acabava empurrado para baixo.
