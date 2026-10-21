@@ -114,7 +114,7 @@ function moedasAtivas() {
 /** Garante que a moeda em foco ainda está na lista de moedas exibidas. */
 function garantirFocoValido() {
   if (!state.moedas.includes(state.foco)) {
-    trocarFoco(state.moedas[0] || 'USD');
+    trocarFoco(state.moedas[0] || 'USD', true);
   }
 }
 
@@ -170,17 +170,26 @@ function quantidadeAtual() {
  * representação da moeda nova; a quantidade continua exata para as próximas
  * conversões (antes, trocar de foco arredondava e o valor andava).
  */
-function trocarFoco(codigo) {
+function trocarFoco(codigo, forcar = false) {
   const alvo = moedaInfo(codigo);
-  if (!alvo) return;
+  if (!alvo) return false;
   if (state.foco !== codigo) {
     const t = tabelaPrecos();
     const exato = converter(state.valor, state.foco, codigo, t?.taxa);
-    if (exato != null) state.valor = exato;
+    if (exato == null) {
+      // Sem cotação não há como saber quanto o valor antigo vale na moeda
+      // nova. Só uma mudança estrutural (remover a moeda em foco) pode
+      // seguir; nesse caso zera em vez de relabelar o número anterior.
+      if (!forcar) return false;
+      state.valor = 0;
+    } else {
+      state.valor = exato;
+    }
   }
   state.foco = codigo;
   state.buffer = bufferDoValor(state.valor, alvo);
   salvarPreferencia(FOCO_KEY, codigo);
+  return true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -225,6 +234,7 @@ function atualizar() {
   if (requisicaoAtual) return requisicaoAtual;
 
   if (!navigator.onLine) {
+    state.carregando = false;
     state.erro = 'offline';
     atualizarStatus();
     return Promise.resolve();
@@ -336,7 +346,11 @@ function textoStatus() {
   const quando = tabelaPrecos()?.atualizadoEm;
   const salvo = quando ? `salvo ${formatarQuando(quando)}` : null;
 
-  if (state.erro && !salvo) return 'sem conexão · sem dados salvos';
+  if (state.erro && !salvo) {
+    return navigator.onLine === false
+      ? 'sem conexão · sem dados salvos'
+      : 'não foi possível atualizar · sem dados salvos';
+  }
   if (state.erro) {
     const motivo =
       navigator.onLine === false ? 'sem conexão' : 'não foi possível atualizar';
@@ -531,7 +545,7 @@ function alternarMoeda(codigo) {
     // Se a moeda removida era a base, converte o valor para a primeira da
     // lista (antes o valor era descartado e virava 1 da moeda nova).
     if (state.foco === codigo) {
-      trocarFoco(state.moedas[0]);
+      trocarFoco(state.moedas[0], true);
     }
   } else {
     state.moedas.push(codigo);
@@ -675,7 +689,7 @@ function alternarTema() {
 /** Troca a moeda em edição, convertendo o valor atual. */
 function focarMoeda(codigo) {
   if (state.foco === codigo) return;
-  trocarFoco(codigo);
+  if (!trocarFoco(codigo)) return;
   atualizarValores();
   const el = campoValor(codigo);
   if (el) {
