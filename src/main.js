@@ -219,18 +219,19 @@ function atualizar() {
 
   if (!navigator.onLine) {
     state.erro = 'offline';
-    render();
+    atualizarStatus();
     return Promise.resolve();
   }
 
   state.carregando = true;
   state.erro = null;
-  render();
+  atualizarStatus();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_API_MS);
 
   requisicaoAtual = (async () => {
+    let sucesso = false;
     try {
       // Base fixa em USD: a tabela de preços é sempre relativa a USD, então o
       // campo em edição do usuário não interfere na busca.
@@ -247,13 +248,15 @@ function atualizar() {
         atualizadoEm,
       };
       salvarCache(state.caches);
+      sucesso = true;
     } catch (e) {
       state.erro = e.message || String(e);
     } finally {
       clearTimeout(timer);
       state.carregando = false;
       requisicaoAtual = null;
-      render();
+      if (sucesso) atualizarDerivados();
+      atualizarStatus();
     }
   })();
 
@@ -311,49 +314,8 @@ function tecla(valor, classe = '') {
   return `<button class="tecla ${classe}" type="button" data-tecla="${valor}">${valor}</button>`;
 }
 
-/**
- * A tela é remontada inteira (innerHTML) a cada tecla e a cada atualização de
- * minuto, e isso cria um <main> e campos novos: sem devolver a rolagem e o
- * cursor, a lista voltava ao topo e o campo em edição perdia o foco.
- */
-function lerTela() {
-  const ativo = document.activeElement;
-  const campo =
-    ativo && app.contains(ativo) && ativo.classList.contains('valor')
-      ? ativo.dataset.moeda
-      : null;
-  const main = app.querySelector('main');
-  return {
-    rolagem: main ? main.scrollTop : 0,
-    // O window pode rolar sozinho no celular durante a remontagem; sem guardar
-    // a posição, a página descia e o teclado ficava fora da tela.
-    janela: { x: window.scrollX, y: window.scrollY },
-    campo,
-    inicio: campo ? ativo.selectionStart : null,
-    fim: campo ? ativo.selectionEnd : null,
-  };
-}
-
-function devolverTela(antes) {
-  if (window.scrollX !== antes.janela.x || window.scrollY !== antes.janela.y) {
-    window.scrollTo(antes.janela.x, antes.janela.y);
-  }
-  if (antes.campo) {
-    const el = app.querySelector(`.valor[data-moeda="${antes.campo}"]`);
-    if (el) {
-      el.focus();
-      if (antes.inicio != null) {
-        try {
-          el.setSelectionRange(antes.inicio, antes.fim);
-        } catch {
-          // campo sem suporte a seleção: segue sem cursor
-        }
-      }
-    }
-  }
-  // Por último: o focus() acima pode ter rolado a lista para mostrar o campo.
-  const main = app.querySelector('main');
-  if (main) main.scrollTop = antes.rolagem;
+function campoValor(codigo) {
+  return app.querySelector(`.valor[data-moeda="${codigo}"]`);
 }
 
 function textoStatus() {
@@ -371,9 +333,27 @@ function textoStatus() {
   return 'sem cotações';
 }
 
+function atualizarStatus() {
+  const status = app.querySelector('.status');
+  if (status) status.textContent = textoStatus();
+
+  const botao = app.querySelector('[data-acao="atualizar"]');
+  if (botao) {
+    botao.disabled = state.carregando;
+    botao.textContent = state.carregando ? '…' : '↻';
+    botao.setAttribute('aria-busy', String(state.carregando));
+  }
+  document.documentElement.dataset.offline = state.erro ? 'true' : 'false';
+}
+
+function atualizarInstalacao() {
+  const host = app.querySelector('#instalacao');
+  if (host) host.innerHTML = instalacao.html();
+}
+
 function render() {
-  const tela = lerTela();
   const status = textoStatus();
+  const rolagem = app.querySelector('main')?.scrollTop || 0;
 
   app.innerHTML = `
     <header class="topo">
@@ -402,7 +382,7 @@ function render() {
 
     <main>${moedasAtivas().map(linhaMoeda).join('')}</main>
 
-    ${instalacao.html()}
+    <div id="instalacao" class="instalacao-host">${instalacao.html()}</div>
 
     <div class="teclado">
       ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn')}
@@ -414,8 +394,8 @@ function render() {
     <footer><p>Fonte: Coinbase · atualiza a cada minuto</p></footer>
   `;
 
-  ligarEventos();
-  devolverTela(tela);
+  const main = app.querySelector('main');
+  if (main) main.scrollTop = rolagem;
   document.documentElement.dataset.offline = state.erro ? 'true' : 'false';
 }
 
@@ -509,75 +489,85 @@ function alternarMoeda(codigo) {
 
 // A faixa vive dentro do #app (é o render que a monta), mas o estado dela —
 // evento do navegador, dispensa guardada — fica no módulo.
-const instalacao = criarSugestaoInstalacao({ aoMudar: () => render() });
+const instalacao = criarSugestaoInstalacao({
+  aoMudar: () => atualizarInstalacao(),
+});
 
 /* ------------------------------------------------------------------ */
 /* Eventos                                                             */
 /* ------------------------------------------------------------------ */
 
 function ligarEventos() {
-  // Clicar na etiqueta (esquerda) foca aquela moeda.
-  app.querySelectorAll('[data-focar]').forEach((btn) => {
-    btn.addEventListener('click', () => focarMoeda(btn.dataset.focar));
+  // Delegação: o #app pode ser remontado (troca de moedas) sem perder os
+  // handlers e sem criar um listener novo por linha a cada render.
+  app.addEventListener('click', (event) => {
+    const alvo = event.target.closest(
+      '[data-focar], [data-tecla], [data-acao]',
+    );
+    if (!alvo || !app.contains(alvo)) return;
+
+    if (alvo.dataset.focar) {
+      focarMoeda(alvo.dataset.focar);
+      return;
+    }
+    if (alvo.dataset.tecla) {
+      aplicarTecla(alvo.dataset.tecla);
+      return;
+    }
+
+    switch (alvo.dataset.acao) {
+      case 'atualizar':
+        atualizar();
+        break;
+      case 'tema':
+        alternarTema();
+        break;
+      case 'lista-moedas':
+        abrirPainel();
+        break;
+      case 'instalar':
+        instalacao.instalar();
+        break;
+      case 'dispensar-instalar':
+        instalacao.dispensar();
+        break;
+      default:
+        break;
+    }
   });
 
-  // Digitar com o teclado do sistema.
-  app.querySelectorAll('.valor').forEach((input) => {
-    const moeda = input.dataset.moeda;
-    input.addEventListener('focus', () => {
-      if (state.foco !== moeda) focarMoeda(moeda);
-    });
-    input.addEventListener('input', () => {
-      // Digitar direto no campo (teclado físico) também formata ao vivo.
-      const caret = input.selectionStart;
-      const bruto = normalizarEntrada(input.value);
-      const formatado = formatarDigitando(bruto);
-      state.foco = moeda;
-      localStorage.setItem(FOCO_KEY, moeda);
-      state.buffer = bruto;
-      state.valor = valorDoBuffer(bruto);
-      if (formatado !== input.value) {
-        const antigo = input.value;
-        input.value = formatado;
-        const pos = posicaoCursor(antigo, formatado, caret);
-        if (pos != null) {
-          try {
-            input.setSelectionRange(pos, pos);
-          } catch {
-            // campo sem suporte a seleção: segue sem cursor
-          }
+  app.addEventListener('focusin', (event) => {
+    const input = event.target.closest?.('.valor');
+    if (!input || !app.contains(input)) return;
+    if (state.foco !== input.dataset.moeda) focarMoeda(input.dataset.moeda);
+  });
+
+  app.addEventListener('input', (event) => {
+    const input = event.target.closest?.('.valor');
+    if (!input || !app.contains(input)) return;
+
+    // Digitar direto no campo (teclado físico) também formata ao vivo.
+    const caret = input.selectionStart;
+    const bruto = normalizarEntrada(input.value);
+    const formatado = formatarDigitando(bruto);
+    state.foco = input.dataset.moeda;
+    localStorage.setItem(FOCO_KEY, state.foco);
+    state.buffer = bruto;
+    state.valor = valorDoBuffer(bruto);
+    if (formatado !== input.value) {
+      const antigo = input.value;
+      input.value = formatado;
+      const pos = posicaoCursor(antigo, formatado, caret);
+      if (pos != null) {
+        try {
+          input.setSelectionRange(pos, pos);
+        } catch {
+          // campo sem suporte a seleção: segue sem cursor
         }
       }
-      atualizarRealce();
-      atualizarDerivados();
-    });
-  });
-
-  // Teclado numérico da tela (sempre aberto).
-  app.querySelectorAll('[data-tecla]').forEach((btn) => {
-    btn.addEventListener('click', () => aplicarTecla(btn.dataset.tecla));
-  });
-
-  app.querySelectorAll('[data-acao="atualizar"]').forEach((btn) => {
-    btn.addEventListener('click', () => atualizar());
-  });
-
-  app.querySelectorAll('[data-acao="tema"]').forEach((btn) => {
-    btn.addEventListener('click', () => alternarTema());
-  });
-
-  // Painel de moedas (vive fora do #app pra não recriar a tela a cada toque)
-  app.querySelectorAll('[data-acao="lista-moedas"]').forEach((btn) => {
-    btn.addEventListener('click', () => abrirPainel());
-  });
-
-  // Faixa de instalação do PWA (montada no render quando há o que sugerir).
-  app.querySelectorAll('[data-acao="instalar"]').forEach((btn) => {
-    btn.addEventListener('click', () => instalacao.instalar());
-  });
-
-  app.querySelectorAll('[data-acao="dispensar-instalar"]').forEach((btn) => {
-    btn.addEventListener('click', () => instalacao.dispensar());
+    }
+    atualizarRealce();
+    atualizarDerivados();
   });
 }
 
@@ -617,12 +607,20 @@ function alternarTema() {
 function focarMoeda(codigo) {
   if (state.foco === codigo) return;
   trocarFoco(codigo);
-  render();
-  const el = app.querySelector(`.valor[data-moeda="${codigo}"]`);
+  atualizarValores();
+  const el = campoValor(codigo);
   if (el) {
     el.focus();
     el.select();
   }
+}
+
+/** Reescreve o campo em foco e todas as linhas derivadas. */
+function atualizarValores() {
+  const foco = campoValor(state.foco);
+  if (foco) foco.value = formatarDigitando(state.buffer);
+  atualizarDerivados();
+  atualizarRealce();
 }
 
 /** Aplica uma tecla do teclado da tela no campo em foco. */
@@ -644,13 +642,15 @@ function aplicarTecla(t) {
 
   state.buffer = b;
   state.valor = valorDoBuffer(b);
-  render();
-  const el = app.querySelector(`.valor[data-moeda="${state.foco}"]`);
+  const el = campoValor(state.foco);
   if (el) {
+    el.value = formatarDigitando(b);
     el.focus();
     const n = el.value.length;
     el.setSelectionRange(n, n);
   }
+  atualizarDerivados();
+  atualizarRealce();
 }
 
 /** Move o destaque laranja para a linha da moeda em edição. */
@@ -695,6 +695,7 @@ if ('serviceWorker' in navigator) {
 
 garantirFocoValido();
 aplicarTema();
+ligarEventos();
 instalacao.iniciar();
 render();
 atualizar();
@@ -706,5 +707,5 @@ document.addEventListener('visibilitychange', atualizarSeVisivel);
 window.addEventListener('online', () => atualizar());
 window.addEventListener('offline', () => {
   state.erro = 'offline';
-  render();
+  atualizarStatus();
 });

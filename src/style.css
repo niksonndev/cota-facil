@@ -299,6 +299,14 @@ main {
 
 /* Faixa de instalação do PWA -------------------------------------- */
 
+.instalacao-host {
+  flex: 0 0 auto;
+}
+
+.instalacao-host:empty {
+  display: none;
+}
+
 .instalar {
   display: flex;
   align-items: center;
