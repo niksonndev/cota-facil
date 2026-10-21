@@ -739,7 +739,10 @@ function atualizarDerivados() {
 /* Boot                                                                */
 /* ------------------------------------------------------------------ */
 
-if ('serviceWorker' in navigator) {
+// Em desenvolvimento o SW atrapalha: ele serve o build antigo e o Vite não
+// consegue recarregar. Em produção, o caminho vem da base do build — um
+// `./sw.js` em /cota-facil/qualquer/ resolveria para a pasta errada.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   // Recarrega só quando um SW NOVO assume o controle (atualização de versão).
   // Antes a página recarregava sozinha a cada abertura, apagando o estado
   // digitado. Aqui o reload depende de `jaControlada`, então não há laço.
@@ -750,9 +753,13 @@ if ('serviceWorker' in navigator) {
     recarregando = true;
     window.location.reload();
   });
-  navigator.serviceWorker.register('./sw.js').catch(() => {
-    // sem SW (ex.: arquivo): o app segue funcionando online
-  });
+  navigator.serviceWorker
+    .register(`${import.meta.env.BASE_URL}sw.js`, {
+      scope: import.meta.env.BASE_URL,
+    })
+    .catch(() => {
+      // sem SW (ex.: arquivo): o app segue funcionando online
+    });
 }
 
 garantirFocoValido();

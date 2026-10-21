@@ -28,13 +28,32 @@ let currentCacheName = null;
 
 const scopeUrl = (path) => new URL(path, self.registration.scope).href;
 
+async function versaoDoManifesto() {
+  const response = await fetch(scopeUrl(MANIFEST_URL), { cache: 'no-store' });
+  if (!response.ok)
+    throw new Error(`Manifesto indisponível (${response.status})`);
+  const { version } = await response.json();
+  return `${CACHE_PREFIX}-${version}`;
+}
+
 async function activeCache() {
   if (!currentCacheName) {
-    const names = (await caches.keys()).filter((name) =>
-      name.startsWith(`${CACHE_PREFIX}-`),
-    );
-    currentCacheName = names.sort().pop() || `${CACHE_PREFIX}-runtime`;
+    try {
+      currentCacheName = await versaoDoManifesto();
+    } catch {
+      // Sem manifesto (offline antes do primeiro precache): procura o cache
+      // mais novo que existir, sem inventar um nome que apagaria os outros.
+    }
   }
+
+  if (currentCacheName && (await caches.has(currentCacheName))) {
+    return caches.open(currentCacheName);
+  }
+
+  const names = (await caches.keys())
+    .filter((name) => name.startsWith(`${CACHE_PREFIX}-`))
+    .sort();
+  currentCacheName = names.pop() || `${CACHE_PREFIX}-runtime`;
   return caches.open(currentCacheName);
 }
 
@@ -46,20 +65,27 @@ async function precache() {
   const { version, assets } = await response.json();
   const cacheName = `${CACHE_PREFIX}-${version}`;
   const cache = await caches.open(cacheName);
+  let indexOk = false;
 
-  // addAll falha inteiro se um arquivo falhar; cada asset é opcional para o app
-  // não ficar sem SW por causa de um 404.
+  // addAll falha inteiro se um arquivo falhar; assets isolados não derrubam o
+  // app inteiro, mas sem o index.html não existe fallback offline confiável.
   await Promise.all(
     assets.map(async (asset) => {
       try {
         // scopeUrl(asset) direto: o caminho já é relativo à base. Um slice(1)
         // aqui duplicaria a subpasta quando o app não está na raiz.
         await cache.add(new Request(scopeUrl(asset), { cache: 'reload' }));
+        if (asset === FALLBACK_URL) indexOk = true;
       } catch (error) {
         console.warn('[sw] não foi possível pré-cachear', asset, error);
       }
     }),
   );
+
+  if (!indexOk) {
+    await caches.delete(cacheName);
+    throw new Error('precache sem index.html');
+  }
 
   currentCacheName = cacheName;
 }
@@ -67,11 +93,9 @@ async function precache() {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
-      try {
-        await precache();
-      } catch (error) {
-        console.warn('[sw] precache falhou:', error);
-      }
+      // Se o precache falhar, NÃO assume o controle: o SW antigo continua
+      // servindo o app em vez de deixar o usuário com um cache incompleto.
+      await precache();
       await self.skipWaiting();
     })(),
   );
@@ -80,22 +104,30 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      const names = await caches.keys();
-      await Promise.all(
-        names
-          .filter(
-            (name) =>
-              name.startsWith(`${CACHE_PREFIX}-`) && name !== currentCacheName,
-          )
-          .map((name) => caches.delete(name)),
-      );
+      let manter = currentCacheName;
+      if (!manter) {
+        try {
+          manter = await versaoDoManifesto();
+          currentCacheName = manter;
+        } catch {
+          // Não sabe qual é a versão atual: na dúvida, não apaga nada.
+        }
+      }
+
+      if (manter && (await caches.has(manter))) {
+        const names = await caches.keys();
+        await Promise.all(
+          names
+            .filter(
+              (name) => name.startsWith(`${CACHE_PREFIX}-`) && name !== manter,
+            )
+            .map((name) => caches.delete(name)),
+        );
+      }
+
       await self.clients.claim();
     })(),
   );
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 const OFFLINE_PAGE =
@@ -114,20 +146,28 @@ async function networkFirstNavigation(request) {
   try {
     const response = await fetch(request);
 
-    // Erro do host (ex.: 404 em rota interna sem rewrite de SPA): serve o shell.
-    if (!response.ok) {
-      const shell = await caches.match(scopeUrl(FALLBACK_URL), {
+    // Erro do host (ex.: 404 em deep link sem rewrite de SPA): serve o shell.
+    // Outros erros (5xx) voltam como vieram, para não esconder o problema.
+    if (response.status === 404) {
+      const shell = await cache.match(scopeUrl(FALLBACK_URL), {
         ignoreVary: true,
       });
       if (shell) return shell;
     }
 
-    cache.put(scopeUrl(FALLBACK_URL), response.clone());
+    const tipo = response.headers.get('content-type') || '';
+    if (response.ok && tipo.includes('text/html')) {
+      try {
+        await cache.put(scopeUrl(FALLBACK_URL), response.clone());
+      } catch (error) {
+        console.warn('[sw] não foi possível atualizar o shell', error);
+      }
+    }
     return response;
   } catch (error) {
     const cached =
-      (await caches.match(scopeUrl(FALLBACK_URL), { ignoreVary: true })) ||
-      (await caches.match(request, { ignoreVary: true }));
+      (await cache.match(scopeUrl(FALLBACK_URL), { ignoreVary: true })) ||
+      (await cache.match(request, { ignoreVary: true }));
     if (cached) return cached;
 
     return new Response(OFFLINE_PAGE, {
@@ -137,7 +177,7 @@ async function networkFirstNavigation(request) {
   }
 }
 
-async function staleWhileRevalidate(request) {
+async function staleWhileRevalidate(request, event) {
   const cache = await activeCache();
 
   // ignoreVary é obrigatório: o host responde "Vary: Origin" e o Chrome envia
@@ -147,15 +187,25 @@ async function staleWhileRevalidate(request) {
   const cached = await cache.match(request, { ignoreVary: true });
 
   const network = fetch(request)
-    .then((response) => {
+    .then(async (response) => {
       if (response && response.status === 200 && response.type === 'basic') {
-        cache.put(request, response.clone());
+        // Espera a gravação: sem isso o navegador pode encerrar o SW antes de
+        // o cache.put terminar e a próxima abertura fica sem o asset.
+        try {
+          await cache.put(request, response.clone());
+        } catch (error) {
+          console.warn('[sw] não foi possível revalidar', request.url, error);
+        }
       }
       return response;
     })
     .catch(() => null);
 
-  if (cached) return cached;
+  if (cached) {
+    // Mesmo servindo do cache, mantém o evento vivo até a revalidação acabar.
+    event.waitUntil(network);
+    return cached;
+  }
 
   const response = await network;
   return (
@@ -182,5 +232,5 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(staleWhileRevalidate(request));
+  event.respondWith(staleWhileRevalidate(request, event));
 });
