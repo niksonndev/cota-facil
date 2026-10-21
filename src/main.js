@@ -704,9 +704,10 @@ function aplicarTecla(t) {
   } else if (t === ',') {
     if (!b.includes(',')) b = (b === '' ? '0' : b) + ',';
   } else {
-    // dígitos e "00"
+    // dígitos e "00": normaliza de novo depois de juntar, senão "00" logo
+    // após o zero continuaria aparecendo como "00" até a próxima tecla.
     if (b === '0') b = '';
-    b += t;
+    b = normalizarEntrada(b + t);
   }
 
   state.buffer = b;
