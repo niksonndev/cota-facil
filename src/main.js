@@ -284,11 +284,16 @@ function linhaMoeda(moeda) {
 
   return `
     <section class="linha ${ehFoco ? 'linha-foco' : ''}" data-linha="${moeda.codigo}">
-      <button class="esq" type="button" data-focar="${moeda.codigo}" aria-label="Editar ${moeda.nome}">
-        <span class="${classeBandeira}">${moeda.bandeira}</span>
+      <button
+        class="esq"
+        type="button"
+        data-focar="${moeda.codigo}"
+        aria-label="Editar ${moeda.nome}: ${moeda.bandeira} ${moeda.codigo} ${moeda.simbolo}"
+      >
+        <span class="${classeBandeira}" aria-hidden="true">${moeda.bandeira}</span>
         <span class="cod">
           <strong>${moeda.codigo}</strong>
-          <span class="sim">${moeda.simbolo}</span>
+          <span class="sim" aria-hidden="true">${moeda.simbolo}</span>
         </span>
       </button>
 
@@ -303,15 +308,17 @@ function linhaMoeda(moeda) {
           spellcheck="false"
           data-moeda="${moeda.codigo}"
           value="${escapeAttr(ehFoco ? formatarDigitando(state.buffer) : valorTexto)}"
-          aria-label="${moeda.nome}"
+          aria-label="Valor em ${moeda.nome} (${moeda.codigo})"
+          aria-describedby="dica-valor"
         />
       </div>
     </section>
   `;
 }
 
-function tecla(valor, classe = '') {
-  return `<button class="tecla ${classe}" type="button" data-tecla="${valor}">${valor}</button>`;
+function tecla(valor, classe = '', rotulo = '') {
+  const nome = rotulo ? `${valor} — ${rotulo}` : valor;
+  return `<button class="tecla ${classe}" type="button" data-tecla="${valor}" aria-label="${nome}">${valor}</button>`;
 }
 
 function campoValor(codigo) {
@@ -359,7 +366,7 @@ function render() {
     <header class="topo">
       <div class="topo-esq">
         <h1>Cota Fácil</h1>
-        <p class="status">${status}</p>
+        <p class="status" role="status" aria-live="polite">${status}</p>
       </div>
       <div class="acoes">
         <button
@@ -376,21 +383,26 @@ function render() {
           data-acao="tema"
           aria-label="${state.tema === 'claro' ? 'Mudar para tema escuro' : 'Mudar para tema claro'}"
         >${state.tema === 'claro' ? '🌙' : '☀️'}</button>
-        <button class="btn-icone" type="button" data-acao="atualizar" ${state.carregando ? 'disabled' : ''} aria-label="Atualizar">
+        <button class="btn-icone" type="button" data-acao="atualizar" ${state.carregando ? 'disabled' : ''} aria-label="Atualizar cotações agora">
           ${state.carregando ? '…' : '↻'}
         </button>
       </div>
     </header>
+
+    <p id="dica-valor" class="sr-only">
+      Use o teclado numérico na tela ou digite para alterar o valor. Toque na
+      sigla da moeda para torná-la a moeda base.
+    </p>
 
     <main>${moedasAtivas().map(linhaMoeda).join('')}</main>
 
     <div id="instalacao" class="instalacao-host">${instalacao.html()}</div>
 
     <div class="teclado">
-      ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn')}
-      ${tecla('4')}${tecla('5')}${tecla('6')}${tecla('AC', 'fn')}
-      ${tecla('1')}${tecla('2')}${tecla('3')}${tecla('00')}
-      ${tecla('0', 'largo')}${tecla(',', 'fn largo')}
+      ${tecla('7')}${tecla('8')}${tecla('9')}${tecla('⌫', 'fn', 'apagar último dígito')}
+      ${tecla('4')}${tecla('5')}${tecla('6')}${tecla('AC', 'fn', 'limpar valor')}
+      ${tecla('1')}${tecla('2')}${tecla('3')}${tecla('00', '', 'dois zeros')}
+      ${tecla('0', 'largo')}${tecla(',', 'fn largo', 'vírgula decimal')}
     </div>
 
     <footer><p>Fonte: Coinbase · atualiza a cada minuto</p></footer>
