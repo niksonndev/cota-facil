@@ -628,7 +628,7 @@ function aplicarTema() {
   if (meta) {
     meta.setAttribute(
       'content',
-      state.tema === 'claro' ? '#f4f6fa' : '#16181d',
+      state.tema === 'claro' ? '#f5f7fb' : '#0f1115',
     );
   }
 }

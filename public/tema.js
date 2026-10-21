@@ -10,6 +10,10 @@
 try {
   var tema = localStorage.getItem('cotafacil:tema');
   if (tema) document.documentElement.setAttribute('data-tema', tema);
+
+  var cor = tema === 'claro' ? '#f5f7fb' : '#0f1115';
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', cor);
 } catch (e) {
   // localStorage indisponível (modo privado): segue com o tema padrão
 }
