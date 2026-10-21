@@ -65,6 +65,9 @@ const state = {
   erro: null,
   // Moeda do campo em edição; as demais são derivadas dela.
   foco: localStorage.getItem(FOCO_KEY) || 'BRL',
+  // Quantidade exata na moeda em foco. O buffer é só a representação exibida:
+  // trocar de moeda não pode arredondar o valor de verdade (ver trocarFoco).
+  valor: 1,
   // Texto bruto que o usuário está digitando no campo em foco.
   buffer: '1',
   // 'escuro' (padrão) ou 'claro'
@@ -103,9 +106,7 @@ function moedasAtivas() {
 /** Garante que a moeda em foco ainda está na lista de moedas exibidas. */
 function garantirFocoValido() {
   if (!state.moedas.includes(state.foco)) {
-    state.foco = state.moedas[0] || 'USD';
-    state.buffer = '1';
-    localStorage.setItem(FOCO_KEY, state.foco);
+    trocarFoco(state.moedas[0] || 'USD');
   }
 }
 
@@ -142,9 +143,36 @@ function tabelaPrecos() {
   return null;
 }
 
+function valorDoBuffer(texto) {
+  const n = parseNumero(texto);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Texto que representa `valor` no campo em foco, sem perder a vírgula. */
+function bufferDoValor(valor, moeda) {
+  return normalizarEntrada(formatarValor(valor, moeda));
+}
+
 function quantidadeAtual() {
-  const n = parseNumero(state.buffer);
-  return Number.isNaN(n) ? 0 : n;
+  return state.valor;
+}
+
+/**
+ * Troca a moeda em foco convertendo a quantidade exata. O buffer recebe só a
+ * representação da moeda nova; a quantidade continua exata para as próximas
+ * conversões (antes, trocar de foco arredondava e o valor andava).
+ */
+function trocarFoco(codigo) {
+  const alvo = moedaInfo(codigo);
+  if (!alvo) return;
+  if (state.foco !== codigo) {
+    const t = tabelaPrecos();
+    const exato = converter(state.valor, state.foco, codigo, t?.taxa);
+    if (exato != null) state.valor = exato;
+  }
+  state.foco = codigo;
+  state.buffer = bufferDoValor(state.valor, alvo);
+  localStorage.setItem(FOCO_KEY, codigo);
 }
 
 /* ------------------------------------------------------------------ */
@@ -424,11 +452,10 @@ function alternarMoeda(codigo) {
   if (i >= 0) {
     if (state.moedas.length === 1) return; // sempre pelo menos uma
     state.moedas.splice(i, 1);
-    // Se a moeda removida era a base, volta para a primeira da lista.
+    // Se a moeda removida era a base, converte o valor para a primeira da
+    // lista (antes o valor era descartado e virava 1 da moeda nova).
     if (state.foco === codigo) {
-      state.foco = state.moedas[0];
-      state.buffer = '1';
-      localStorage.setItem(FOCO_KEY, state.foco);
+      trocarFoco(state.moedas[0]);
     }
   } else {
     state.moedas.push(codigo);
@@ -470,6 +497,7 @@ function ligarEventos() {
       state.foco = moeda;
       localStorage.setItem(FOCO_KEY, moeda);
       state.buffer = bruto;
+      state.valor = valorDoBuffer(bruto);
       if (formatado !== input.value) {
         const antigo = input.value;
         input.value = formatado;
@@ -550,16 +578,7 @@ function alternarTema() {
 /** Troca a moeda em edição, convertendo o valor atual. */
 function focarMoeda(codigo) {
   if (state.foco === codigo) return;
-  const t = tabelaPrecos();
-  const v = converter(quantidadeAtual(), state.foco, codigo, t?.taxa);
-  const alvo = moedaInfo(codigo);
-  state.foco = codigo;
-  localStorage.setItem(FOCO_KEY, codigo);
-  if (v != null && alvo) {
-    // O valor formatado (pt-BR, com pontos de milhar) volta pro buffer cru:
-    // normalizarEntrada guarda só dígitos e vírgula; a exibição re-agrupa.
-    state.buffer = normalizarEntrada(formatarValor(v, alvo));
-  }
+  trocarFoco(codigo);
   render();
   const el = app.querySelector(`.valor[data-moeda="${codigo}"]`);
   if (el) {
@@ -586,6 +605,7 @@ function aplicarTecla(t) {
   }
 
   state.buffer = b;
+  state.valor = valorDoBuffer(b);
   render();
   const el = app.querySelector(`.valor[data-moeda="${state.foco}"]`);
   if (el) {
