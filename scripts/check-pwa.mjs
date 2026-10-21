@@ -136,8 +136,8 @@ for (const marker of [
 ]) {
   if (!html.includes(marker)) problems.push(`index.html sem ${marker}`);
 }
-if (/%BASE[^_U]/.test(html)) {
-  problems.push('index.html com token %BASE% não substituído (use %BASE_URL%)');
+if (html.includes('%APP_BASE%')) {
+  problems.push('index.html com %APP_BASE% não substituído pelo Vite');
 }
 
 // A CSP do index.html usa `script-src 'self'`: script inline é bloqueado pelo

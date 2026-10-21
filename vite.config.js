@@ -10,7 +10,16 @@ import {
 } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
-const BASE = '/cota-facil/';
+function normalizarBase(valor) {
+  let base = String(valor || '/').trim();
+  if (!base.startsWith('/')) base = `/${base}`;
+  if (!base.endsWith('/')) base = `${base}/`;
+  return base;
+}
+
+// O padrão é a subpasta do GitHub Pages; `BASE_PATH=/` permite publicar na
+// raiz do domínio sem editar o código.
+const BASE = normalizarBase(process.env.BASE_PATH || '/cota-facil/');
 
 const PATTERN = /\.(?:js|css|html|svg|png|ico|webmanifest|woff2?)$/;
 // sw.js e o manifesto fora do precache (travaria a atualização); 404.html é
@@ -22,6 +31,35 @@ const listFiles = (dir) =>
     const full = join(dir, e);
     return statSync(full).isDirectory() ? listFiles(full) : [full];
   });
+
+/**
+ * `%BASE_URL%` do Vite duplicava a subpasta no servidor de desenvolvimento
+ * (`/cota-facil/cota-facil/tema.js`). O token próprio é resolvido igual no dev
+ * e no build e continua sendo um caminho absoluto — necessário porque o shell
+ * também é servido em deep links como /cota-facil/qualquer/.
+ */
+function appBaseToken() {
+  return {
+    name: 'app:base-token',
+    transformIndexHtml(html) {
+      return html.replaceAll('%APP_BASE%', BASE);
+    },
+  };
+}
+
+/** O HMR do Vite usa websocket; só o servidor de desenvolvimento o libera. */
+function devCsp() {
+  return {
+    name: 'app:csp-dev',
+    apply: 'serve',
+    transformIndexHtml(html) {
+      return html.replace(
+        'connect-src https://api.coinbase.com;',
+        'connect-src https://api.coinbase.com ws: wss:;',
+      );
+    },
+  };
+}
 
 function pwaPrecacheManifest() {
   return {
@@ -59,5 +97,5 @@ function pwaPrecacheManifest() {
 export default defineConfig({
   base: BASE,
   build: { target: 'es2020' },
-  plugins: [pwaPrecacheManifest()],
+  plugins: [appBaseToken(), devCsp(), pwaPrecacheManifest()],
 });
