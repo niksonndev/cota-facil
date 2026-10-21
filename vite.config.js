@@ -74,6 +74,10 @@ function pwaPrecacheManifest() {
         .sort();
 
       const hash = createHash('sha256');
+      // O próprio SW entra no hash: uma mudança só nele precisa gerar um cache
+      // novo, senão o precache pode apagar o cache que o SW ativo ainda usa.
+      hash.update('sw.js');
+      hash.update(readFileSync('dist/sw.js'));
       for (const f of files) {
         hash.update(toPath(f));
         hash.update(readFileSync(f));

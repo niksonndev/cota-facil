@@ -50,9 +50,11 @@ async function activeCache() {
     return caches.open(currentCacheName);
   }
 
-  const names = (await caches.keys())
-    .filter((name) => name.startsWith(`${CACHE_PREFIX}-`))
-    .sort();
+  // Sem manifesto, usa o cache criado por último. Ordenar pelo hash escolheria
+  // uma versão aleatória, não a mais recente.
+  const names = (await caches.keys()).filter((name) =>
+    name.startsWith(`${CACHE_PREFIX}-`),
+  );
   currentCacheName = names.pop() || `${CACHE_PREFIX}-runtime`;
   return caches.open(currentCacheName);
 }
@@ -63,28 +65,40 @@ async function precache() {
     throw new Error(`Manifesto indisponível (${response.status})`);
 
   const { version, assets } = await response.json();
-  const cacheName = `${CACHE_PREFIX}-${version}`;
-  const cache = await caches.open(cacheName);
-  let indexOk = false;
+  if (!version || !Array.isArray(assets)) {
+    throw new Error('manifesto de precache inválido');
+  }
 
-  // addAll falha inteiro se um arquivo falhar; assets isolados não derrubam o
-  // app inteiro, mas sem o index.html não existe fallback offline confiável.
+  const cacheName = `${CACHE_PREFIX}-${version}`;
+  const jaExistia = await caches.has(cacheName);
+  const cache = await caches.open(cacheName);
+  const baixados = new Set();
+  // Ícones podem falhar sem quebrar o shell; HTML, JS e CSS não. Um cache
+  // incompleto com esses arquivos assumiria o controle e apagaria um cache
+  // bom, então a instalação precisa falhar inteira.
+  const essenciais = new Set([
+    FALLBACK_URL,
+    ...assets.filter((asset) => /\.(?:js|css)$/.test(asset)),
+  ]);
+
   await Promise.all(
     assets.map(async (asset) => {
       try {
         // scopeUrl(asset) direto: o caminho já é relativo à base. Um slice(1)
         // aqui duplicaria a subpasta quando o app não está na raiz.
         await cache.add(new Request(scopeUrl(asset), { cache: 'reload' }));
-        if (asset === FALLBACK_URL) indexOk = true;
+        baixados.add(asset);
       } catch (error) {
         console.warn('[sw] não foi possível pré-cachear', asset, error);
       }
     }),
   );
 
-  if (!indexOk) {
-    await caches.delete(cacheName);
-    throw new Error('precache sem index.html');
+  const faltando = [...essenciais].filter((asset) => !baixados.has(asset));
+  if (faltando.length > 0) {
+    // Se este cache já existia, ele é o que o SW ativo está usando: não apaga.
+    if (!jaExistia) await caches.delete(cacheName);
+    throw new Error(`precache incompleto: ${faltando.join(', ')}`);
   }
 
   currentCacheName = cacheName;
@@ -146,9 +160,9 @@ async function networkFirstNavigation(request) {
   try {
     const response = await fetch(request);
 
-    // Erro do host (ex.: 404 em deep link sem rewrite de SPA): serve o shell.
-    // Outros erros (5xx) voltam como vieram, para não esconder o problema.
-    if (response.status === 404) {
+    // Host sem rewrite (404) ou fora do ar (5xx): serve o shell em cache em
+    // vez de deixar o usuário numa página de erro que o app não controla.
+    if (!response.ok) {
       const shell = await cache.match(scopeUrl(FALLBACK_URL), {
         ignoreVary: true,
       });
