@@ -1,4 +1,19 @@
 import './style.css';
+import {
+  CATALOGO,
+  CODIGOS,
+  PADRAO,
+  POR_CODIGO,
+  moedaInfo,
+} from './catalogo.js';
+import { converter, tabelaDeTaxas } from './conversao.js';
+import {
+  formatarDigitando,
+  formatarValor,
+  normalizarEntrada,
+  parseNumero,
+  posicaoCursor,
+} from './formato.js';
 import { criarSugestaoInstalacao } from './instalar.js';
 
 const BASE_URL = 'https://api.coinbase.com/v2/exchange-rates';
@@ -7,39 +22,6 @@ const FOCO_KEY = 'cotafacil:foco';
 const TEMA_KEY = 'cotafacil:tema';
 const MOEDAS_KEY = 'cotafacil:moedas';
 const REFRESH_MS = 60_000; // um minuto entre atualizações
-
-const SATS_POR_BTC = 100_000_000;
-
-/**
- * Catálogo de moedas. `casas` é o número de casas decimais na exibição e
- * `decimais` controla se o teclado aceita fração (moedas muito inflacionadas,
- * como ARS e PYG, mostram inteiro).
- *
- * A tabela fica uma linha por moeda, mesmo passando das 80 colunas: com 15
- * moedas, o bloco de 8 linhas por item que o prettier faria enterra a leitura
- * de quem só quer comparar os campos de uma moeda com os da de cima.
- */
-// prettier-ignore
-const CATALOGO = [
-  { codigo: 'BTC', nome: 'Bitcoin', rotulo: 'BTC', simbolo: '₿', bandeira: '₿', tipo: 'btc', casas: 2, btc: true },
-  { codigo: 'SATS', nome: 'Bitcoin (Satoshi)', rotulo: 'SATS', simbolo: 'sat', bandeira: '⚡', tipo: 'sats', casas: 0, btc: false },
-  { codigo: 'USD', nome: 'Dólar americano', rotulo: 'USD', simbolo: '$', bandeira: '🇺🇸', tipo: 'fiat', casas: 2 },
-  { codigo: 'EUR', nome: 'Euro', rotulo: 'EUR', simbolo: '€', bandeira: '🇪🇺', tipo: 'fiat', casas: 2 },
-  { codigo: 'BRL', nome: 'Real brasileiro', rotulo: 'BRL', simbolo: 'R$', bandeira: '🇧🇷', tipo: 'fiat', casas: 2 },
-  { codigo: 'GBP', nome: 'Libra esterlina', rotulo: 'GBP', simbolo: '£', bandeira: '🇬🇧', tipo: 'fiat', casas: 2 },
-  { codigo: 'ARS', nome: 'Peso argentino', rotulo: 'ARS', simbolo: '$', bandeira: '🇦🇷', tipo: 'fiat', casas: 0 },
-  { codigo: 'MXN', nome: 'Peso mexicano', rotulo: 'MXN', simbolo: '$', bandeira: '🇲🇽', tipo: 'fiat', casas: 2 },
-  { codigo: 'PYG', nome: 'Guarani paraguaio', rotulo: 'PYG', simbolo: '₲', bandeira: '🇵🇾', tipo: 'fiat', casas: 0 },
-  { codigo: 'UYU', nome: 'Peso uruguaio', rotulo: 'UYU', simbolo: '$', bandeira: '🇺🇾', tipo: 'fiat', casas: 2 },
-  { codigo: 'CLP', nome: 'Peso chileno', rotulo: 'CLP', simbolo: '$', bandeira: '🇨🇱', tipo: 'fiat', casas: 0 },
-  { codigo: 'CAD', nome: 'Dólar canadense', rotulo: 'CAD', simbolo: '$', bandeira: '🇨🇦', tipo: 'fiat', casas: 2 },
-  { codigo: 'JPY', nome: 'Iene japonês', rotulo: 'JPY', simbolo: '¥', bandeira: '🇯🇵', tipo: 'fiat', casas: 0 },
-  { codigo: 'CHF', nome: 'Franco suíço', rotulo: 'CHF', simbolo: 'Fr', bandeira: '🇨🇭', tipo: 'fiat', casas: 2 },
-  { codigo: 'CNY', nome: 'Yuan chinês', rotulo: 'CNY', simbolo: '¥', bandeira: '🇨🇳', tipo: 'fiat', casas: 2 },
-];
-
-/** Moedas escolhidas pelo usuário (ordem exibida). */
-const PADRAO = ['BTC', 'SATS', 'USD', 'BRL', 'PYG'];
 
 const app = document.getElementById('app');
 
@@ -54,125 +36,8 @@ const DISPOSITIVO_TOQUE =
   window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 /* ------------------------------------------------------------------ */
-/* Formatação                                                          */
+/* Utilidades de HTML                                                  */
 /* ------------------------------------------------------------------ */
-
-/** Bitcoin: casas decimais escaladas pela magnitude. */
-function formatarBtc(valor) {
-  const abs = Math.abs(valor);
-  let digitos;
-  if (abs === 0) digitos = 2;
-  else if (abs >= 1) digitos = 6;
-  else {
-    digitos = Math.ceil(-Math.log10(abs)) + 1; // ordem de grandeza + 1
-    digitos = Math.min(Math.max(digitos, 8), 20);
-  }
-  return valor.toLocaleString('pt-BR', {
-    minimumFractionDigits: digitos,
-    maximumFractionDigits: digitos,
-  });
-}
-
-/**
- * Satoshi: inteiro, com separador de milhar. Abaixo de 1 satoshi (1 guarani
- * vale 0,215 sat) a unidade inteira diria zero e a linha contradiria a do
- * Bitcoin, que mostra 0,0000000021: aí mostra a fração.
- */
-function formatarSats(valor) {
-  const abs = Math.abs(valor);
-  if (abs > 0 && abs < 1) {
-    return valor.toLocaleString('pt-BR', {
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    });
-  }
-  return Math.round(valor).toLocaleString('pt-BR', {
-    maximumFractionDigits: 0,
-  });
-}
-
-/** Fiat: N casas, sem símbolo (o símbolo fica na etiqueta da linha). */
-function formatarFiat(valor, casas) {
-  return valor.toLocaleString('pt-BR', {
-    minimumFractionDigits: casas,
-    maximumFractionDigits: casas,
-  });
-}
-
-function formatarValor(valor, moeda) {
-  if (moeda.tipo === 'btc') return formatarBtc(valor);
-  if (moeda.tipo === 'sats') return formatarSats(valor);
-  return formatarFiat(valor, moeda.casas);
-}
-
-function moedaInfo(codigo) {
-  return CATALOGO.find((m) => m.codigo === codigo) || CATALOGO[0];
-}
-
-/**
- * Converte um texto digitado (pt-BR, vírgula decimal) em número.
- * Aceita "1.234,56", "1234.56" e "1234,56".
- */
-function parseNumero(texto) {
-  if (!texto) return NaN;
-  const limpo = String(texto)
-    .replace(/[^\d.,]/g, '')
-    .replace(/\.(?=\d{3}(\D|$))/g, '') // ponto como separador de milhar
-    .replace(',', '.');
-  return Number.parseFloat(limpo);
-}
-
-/**
- * Limpa o que veio da tela ou do teclado físico para o buffer interno:
- * só dígitos e no máximo uma vírgula. Ponto que claramente é decimal
- * (seguido de até dois dígitos no fim) vira vírgula; ponto de milhar é
- * largado — o agrupamento é recalculado na exibição.
- */
-function normalizarEntrada(texto) {
-  let b = String(texto).replace(/[^\d.,]/g, '');
-  b = b.replace(/\.(?=\d{1,2}(?:\D|$))/g, ','); // ponto decimal (desktop)
-  b = b.replace(/\./g, '');
-  const primeira = b.indexOf(',');
-  if (primeira >= 0) {
-    // vírgulas extras (digitação rápida) somem; a primeira manda
-    b = b.slice(0, primeira + 1) + b.slice(primeira + 1).replace(/,/g, '');
-  }
-  return b;
-}
-
-/**
- * Formatação ao vivo do buffer para o campo em edição: pontos de milhar
- * quando a parte inteira passa de 3 dígitos e a vírgula "aberta" enquanto a
- * fração ainda não foi digitada — "1234567,5" aparece como "1.234.567,5".
- */
-function formatarDigitando(texto) {
-  if (!texto) return '';
-  const [inteira, decimal] = texto.split(',');
-  let inteiro = inteira.replace(/\./g, '');
-  if (inteiro.length > 3) {
-    inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  }
-  return decimal != null ? `${inteiro},${decimal}` : inteiro;
-}
-
-/**
- * Posição do cursor no texto reformatado a partir da posição no texto antigo:
- * conta quantos dígitos/vírgulas havia à esquerda e procura essa mesma
- * quantidade no novo, para digitar com teclado físico sem o cursor fugir.
- */
-function posicaoCursor(antigo, novo, antes) {
-  if (antes == null) return null;
-  const alvo = (antigo.slice(0, antes).match(/[\d,]/g) || []).length;
-  if (alvo === 0) return 0;
-  let conta = 0;
-  for (let i = 0; i < novo.length; i++) {
-    if (/[\d,]/.test(novo[i])) {
-      conta++;
-      if (conta === alvo) return i + 1;
-    }
-  }
-  return novo.length;
-}
 
 function escapeAttr(s) {
   return String(s)
@@ -215,7 +80,7 @@ function lerMoedas() {
   try {
     const bruto = JSON.parse(localStorage.getItem(MOEDAS_KEY) || 'null');
     if (!Array.isArray(bruto)) return [...PADRAO];
-    const validas = bruto.filter((c) => CATALOGO.some((m) => m.codigo === c));
+    const validas = [...new Set(bruto.filter((c) => CODIGOS.has(c)))];
     return validas.length > 0 ? validas : [...PADRAO];
   } catch {
     return [...PADRAO];
@@ -232,9 +97,7 @@ function salvarMoedas() {
 
 /** Objetos do catálogo correspondentes à seleção atual. */
 function moedasAtivas() {
-  return state.moedas
-    .map((c) => CATALOGO.find((m) => m.codigo === c))
-    .filter(Boolean);
+  return state.moedas.map((c) => POR_CODIGO.get(c)).filter(Boolean);
 }
 
 /** Garante que a moeda em foco ainda está na lista de moedas exibidas. */
@@ -273,27 +136,10 @@ function salvarCache(dados) {
 function tabelaPrecos() {
   const entradas = Object.values(state.caches);
   for (const entrada of entradas) {
-    const r = entrada?.data;
-    if (!r) continue;
-    const taxa = {};
-    for (const m of CATALOGO) {
-      if (m.codigo === 'SATS') continue;
-      if (r[m.codigo] != null) taxa[m.codigo] = r[m.codigo];
-    }
-    if (taxa.BTC != null) taxa.SATS = taxa.BTC * SATS_POR_BTC;
-    const obrigatorias = ['USD', 'BRL', 'BTC'].every((c) => taxa[c] != null);
-    if (obrigatorias) return { taxa, atualizadoEm: entrada.atualizadoEm };
+    const taxa = tabelaDeTaxas(entrada?.data);
+    if (taxa) return { taxa, atualizadoEm: entrada.atualizadoEm };
   }
   return null;
-}
-
-/** Converte `qtd` da moeda `de` para a moeda `para`. */
-function converter(qtd, de, para) {
-  const t = tabelaPrecos();
-  if (!t) return null;
-  if (t.taxa[de] == null || t.taxa[para] == null) return null;
-  if (de === para) return qtd;
-  return (qtd / t.taxa[de]) * t.taxa[para];
 }
 
 function quantidadeAtual() {
@@ -363,18 +209,19 @@ function linhaMoeda(moeda) {
   if (ehFoco) {
     valorTexto = state.buffer;
   } else if (t) {
-    const v = converter(quantidadeAtual(), state.foco, moeda.codigo);
+    const v = converter(quantidadeAtual(), state.foco, moeda.codigo, t.taxa);
     valorTexto = v == null ? '' : formatarValor(v, moeda);
   }
 
-  const classeBandeira = moeda.btc ? 'bandeira bandeira-btc' : 'bandeira';
+  const classeBandeira =
+    moeda.tipo === 'btc' ? 'bandeira bandeira-btc' : 'bandeira';
 
   return `
     <section class="linha ${ehFoco ? 'linha-foco' : ''}" data-linha="${moeda.codigo}">
       <button class="esq" type="button" data-focar="${moeda.codigo}" aria-label="Editar ${moeda.nome}">
         <span class="${classeBandeira}">${moeda.bandeira}</span>
         <span class="cod">
-          <strong>${moeda.rotulo}</strong>
+          <strong>${moeda.codigo}</strong>
           <span class="sim">${moeda.simbolo}</span>
         </span>
       </button>
@@ -526,7 +373,7 @@ function painelMoedas() {
             >
               <span class="painel-bandeira">${m.bandeira}</span>
               <span class="painel-nome">
-                <strong>${m.rotulo}</strong>
+                <strong>${m.codigo}</strong>
                 <small>${m.nome}</small>
               </span>
               <span class="painel-marca">${ativa ? '✓' : ''}</span>
@@ -703,13 +550,15 @@ function alternarTema() {
 /** Troca a moeda em edição, convertendo o valor atual. */
 function focarMoeda(codigo) {
   if (state.foco === codigo) return;
-  const v = converter(quantidadeAtual(), state.foco, codigo);
+  const t = tabelaPrecos();
+  const v = converter(quantidadeAtual(), state.foco, codigo, t?.taxa);
+  const alvo = moedaInfo(codigo);
   state.foco = codigo;
   localStorage.setItem(FOCO_KEY, codigo);
-  if (v != null && !Number.isNaN(v)) {
+  if (v != null && alvo) {
     // O valor formatado (pt-BR, com pontos de milhar) volta pro buffer cru:
     // normalizarEntrada guarda só dígitos e vírgula; a exibição re-agrupa.
-    state.buffer = normalizarEntrada(formatarValor(v, moedaInfo(codigo)));
+    state.buffer = normalizarEntrada(formatarValor(v, alvo));
   }
   render();
   const el = app.querySelector(`.valor[data-moeda="${codigo}"]`);
@@ -756,11 +605,12 @@ function atualizarRealce() {
 /** Recalcula e reescreve só os campos que NÃO estão em foco. */
 function atualizarDerivados() {
   const qtd = quantidadeAtual();
+  const t = tabelaPrecos();
   for (const moeda of moedasAtivas()) {
     if (moeda.codigo === state.foco) continue;
     const el = app.querySelector(`.valor[data-moeda="${moeda.codigo}"]`);
     if (!el) continue;
-    const v = converter(qtd, state.foco, moeda.codigo);
+    const v = converter(qtd, state.foco, moeda.codigo, t?.taxa);
     el.value = v == null ? '' : formatarValor(v, moeda);
   }
 }

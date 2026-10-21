@@ -9,6 +9,7 @@
     "preview": "vite preview --port 4173 --host",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test": "node --test",
     "check-pwa": "node scripts/check-pwa.mjs"
   },
   "devDependencies": {
