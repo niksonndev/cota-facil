@@ -80,11 +80,7 @@ export function formatarValor(valor, moeda) {
  */
 export function parseNumero(texto) {
   if (!texto) return NaN;
-  const limpo = String(texto)
-    .replace(/[^\d.,]/g, '')
-    .replace(/\.(?=\d{3}(\D|$))/g, '') // ponto como separador de milhar
-    .replace(',', '.');
-  return Number.parseFloat(limpo);
+  return Number.parseFloat(normalizarEntrada(texto).replace(',', '.'));
 }
 
 /**
@@ -95,13 +91,33 @@ export function parseNumero(texto) {
  */
 export function normalizarEntrada(texto) {
   let b = String(texto).replace(/[^\d.,]/g, '');
-  b = b.replace(/\.(?=\d{1,2}(?:\D|$))/g, ','); // ponto decimal (desktop)
-  b = b.replace(/\./g, '');
+
+  // Separa o que é milhar do que é decimal. Um ponto é milhar quando o texto
+  // já tem vírgula ou quando forma grupos de três dígitos após um inteiro
+  // válido ("1.234.567"). Fora disso é decimal — inclusive "1." no meio da
+  // digitação, que antes virava "1" e transformava 1,5 em 15.
+  if (b.includes('.')) {
+    const temVirgula = b.includes(',');
+    const pontoDepoisDaVirgula =
+      temVirgula && b.lastIndexOf('.') > b.indexOf(',');
+    const gruposDeMilhar = /^[1-9]\d{0,2}(?:\.\d{3})+$/.test(b);
+
+    if (pontoDepoisDaVirgula) {
+      // Formato americano: 1,234.56 -> 1234,56
+      b = b.replace(/,/g, '').replace(/\./g, ',');
+    } else if (temVirgula || gruposDeMilhar) {
+      b = b.replace(/\./g, '');
+    } else {
+      b = b.replace(/\./g, ',');
+    }
+  }
+
   const primeira = b.indexOf(',');
   if (primeira >= 0) {
     // vírgulas extras (digitação rápida) somem; a primeira manda
     b = b.slice(0, primeira + 1) + b.slice(primeira + 1).replace(/,/g, '');
   }
+  if (b.startsWith(',')) b = `0${b}`;
   // "005" e "000,7" são o mesmo que "5" e "0,7": zero à esquerda só
   // enganava a leitura do valor.
   b = b.replace(/^0+(?=\d)/, '');

@@ -16,6 +16,9 @@ test('parseNumero entende os formatos aceitos', () => {
   assert.equal(parseNumero('1.234,56'), 1234.56);
   assert.equal(parseNumero('1234.56'), 1234.56);
   assert.equal(parseNumero('1234,56'), 1234.56);
+  assert.equal(parseNumero('1,234.56'), 1234.56);
+  assert.equal(parseNumero('0.0001'), 0.0001);
+  assert.equal(parseNumero('1.234'), 1234);
   assert.ok(Number.isNaN(parseNumero('')));
 });
 
@@ -30,7 +33,16 @@ test('normalizarEntrada remove zeros à esquerda', () => {
   assert.equal(normalizarEntrada('005'), '5');
   assert.equal(normalizarEntrada('00'), '0');
   assert.equal(normalizarEntrada('00,5'), '0,5');
-  assert.equal(normalizarEntrada('00.007'), '7');
+});
+
+test('normalizarEntrada distingue ponto decimal de milhar', () => {
+  assert.equal(normalizarEntrada('1.'), '1,');
+  assert.equal(normalizarEntrada('1.5'), '1,5');
+  assert.equal(normalizarEntrada('0.0001'), '0,0001');
+  assert.equal(normalizarEntrada('00.007'), '0,007');
+  assert.equal(normalizarEntrada('1.234'), '1234');
+  assert.equal(normalizarEntrada('1.234,56'), '1234,56');
+  assert.equal(normalizarEntrada('1,234.56'), '1234,56');
 });
 
 test('formatarDigitando agrupa milhares e preserva a vírgula aberta', () => {
