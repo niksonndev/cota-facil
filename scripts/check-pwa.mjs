@@ -30,8 +30,8 @@ function readJson(file) {
 const readText = (file) =>
   existsSync(join(DIST, file)) ? readFileSync(join(DIST, file), 'utf8') : '';
 
-// O precache carrega a base do build (ex.: /m-nance/ no GitHub Pages) — é o que
-// permite converter link absoluto do HTML em caminho dentro de dist.
+// O precache carrega a base do build (ex.: /cota-facil/ no GitHub Pages) — é o
+// que permite converter link absoluto do HTML em caminho dentro de dist.
 const precache = readJson('precache-manifest.json');
 const base = precache?.base ?? '/';
 

@@ -72,8 +72,6 @@ export function criarSugestaoInstalacao({ aoMudar }) {
     return 'oculto';
   }
 
-  const visivel = () => modo() !== 'oculto';
-
   /** Faixa em HTML; string vazia quando não há sugestão a mostrar. */
   function html() {
     const m = modo();
@@ -148,5 +146,5 @@ export function criarSugestaoInstalacao({ aoMudar }) {
     });
   }
 
-  return { html, iniciar, instalar, dispensar, visivel };
+  return { html, iniciar, instalar, dispensar };
 }

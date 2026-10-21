@@ -1,6 +1,6 @@
 # Cota Fácil
 
-PWA instalável no Android com a cotação de:
+PWA instalável no Android, no iPhone/iPad e no desktop com a cotação de:
 
 - **Bitcoin**, inteiro (1 BTC) e em Satoshi (1 sat)
 - **Dólar americano** (USD)
@@ -9,6 +9,10 @@ PWA instalável no Android com a cotação de:
 
 Funciona offline: guarda as últimas cotações no aparelho e mostra o horário
 em que foram salvas. Fonte dos dados: API pública da Coinbase.
+
+O valor digitado é mantido de forma exata ao trocar a moeda em foco; a tela
+arredonda só para exibir. A atualização tem timeout, não dispara chamadas
+duplicadas e pausa enquanto a aba está oculta.
 
 ## Por que isso existe
 
@@ -29,6 +33,7 @@ então no celular o teclado do sistema não atrapalha.
 ```bash
 pnpm install
 pnpm dev          # desenvolvimento
+pnpm test         # testes das regras de catálogo, conversão e formato
 pnpm build        # gera o dist/ pronto para publicar
 pnpm check-pwa    # valida manifest, ícones e precache do service worker
 pnpm format       # formata tudo com prettier
@@ -38,7 +43,15 @@ pnpm format:check # só confere a formatação (é o que o CI roda)
 O `.prettierrc` acompanha o estilo do código: aspas simples, vírgula final em
 toda lista (`trailingComma: all`, o padrão do Prettier 3) e 80 colunas.
 
+A base padrão do build é `/cota-facil/`, para o GitHub Pages de projeto. Para
+publicar na raiz de um domínio:
+
+```bash
+BASE_PATH=/ pnpm build
+```
+
 ## Deploy
 
 Push na `main` publica no GitHub Pages pelo workflow em
-`.github/workflows/ci.yml` (build + validação do PWA + deploy).
+`.github/workflows/ci.yml` (formatação, testes, build + validação do PWA,
+depois deploy).

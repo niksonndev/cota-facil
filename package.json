@@ -2,6 +2,7 @@
   "name": "cota-facil",
   "private": true,
   "version": "1.0.0",
+  "description": "Conversor de cotações de Bitcoin, dólar, real, guarani e outras moedas, com PWA offline.",
   "type": "module",
   "scripts": {
     "dev": "vite",
