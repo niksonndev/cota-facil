@@ -367,6 +367,8 @@ function render() {
           type="button"
           data-acao="lista-moedas"
           aria-label="Escolher moedas"
+          aria-controls="painel-moedas"
+          aria-expanded="${state.listaAberta}"
         >＋</button>
         <button
           class="btn-icone"
@@ -399,38 +401,36 @@ function render() {
   document.documentElement.dataset.offline = state.erro ? 'true' : 'false';
 }
 
-/** Painel de seleção de moedas, sobreposto à tela. */
+/** Conteúdo do painel de seleção de moedas (o <dialog> fica no body). */
 function painelMoedas() {
   return `
-    <div class="painel-fundo" data-acao="fechar-lista"></div>
-    <section class="painel" role="dialog" aria-label="Escolher moedas">
-      <header class="painel-topo">
-        <strong>Moedas</strong>
-        <button class="btn-icone" type="button" data-acao="fechar-lista" aria-label="Fechar">✕</button>
-      </header>
-      <div class="painel-lista">
-        ${CATALOGO.map((m) => {
-          const ativa = state.moedas.includes(m.codigo);
-          return `
-            <button
-              class="painel-item ${ativa ? 'painel-item-ativa' : ''}"
-              type="button"
-              data-toggle="${m.codigo}"
-            >
-              <span class="painel-bandeira">${m.bandeira}</span>
-              <span class="painel-nome">
-                <strong>${m.codigo}</strong>
-                <small>${m.nome}</small>
-              </span>
-              <span class="painel-marca">${ativa ? '✓' : ''}</span>
-            </button>
-          `;
-        }).join('')}
-      </div>
-      <footer class="painel-pe">
-        <p>Toque para adicionar ou remover. Deixe pelo menos uma moeda.</p>
-      </footer>
-    </section>
+    <header class="painel-topo">
+      <strong id="painel-titulo">Moedas</strong>
+      <button class="btn-icone" type="button" data-acao="fechar-lista" aria-label="Fechar">✕</button>
+    </header>
+    <div class="painel-lista">
+      ${CATALOGO.map((m) => {
+        const ativa = state.moedas.includes(m.codigo);
+        return `
+          <button
+            class="painel-item ${ativa ? 'painel-item-ativa' : ''}"
+            type="button"
+            data-toggle="${m.codigo}"
+            aria-pressed="${ativa}"
+          >
+            <span class="painel-bandeira" aria-hidden="true">${m.bandeira}</span>
+            <span class="painel-nome">
+              <strong>${m.codigo}</strong>
+              <small>${m.nome}</small>
+            </span>
+            <span class="painel-marca" aria-hidden="true">${ativa ? '✓' : ''}</span>
+          </button>
+        `;
+      }).join('')}
+    </div>
+    <footer class="painel-pe">
+      <p>Toque para adicionar ou remover. Deixe pelo menos uma moeda.</p>
+    </footer>
   `;
 }
 
@@ -438,31 +438,70 @@ function painelMoedas() {
 /* Painel de moedas                                                    */
 /* ------------------------------------------------------------------ */
 
-const painelEl = document.createElement('div');
-painelEl.className = 'painel-host';
-painelEl.hidden = true;
+const painelEl = document.createElement('dialog');
+painelEl.className = 'painel';
+painelEl.id = 'painel-moedas';
+painelEl.setAttribute('aria-labelledby', 'painel-titulo');
 document.body.appendChild(painelEl);
 
+function atualizarBotaoLista() {
+  const botao = app.querySelector('[data-acao="lista-moedas"]');
+  if (botao) {
+    botao.setAttribute('aria-expanded', String(state.listaAberta));
+  }
+}
+
+let painelOrigem = null;
+
 function abrirPainel() {
+  if (painelEl.open) return;
+  painelOrigem = document.activeElement;
   state.listaAberta = true;
+  atualizarBotaoLista();
   desenharPainel();
-  painelEl.hidden = false;
+  painelEl.showModal();
 }
 
 function fecharPainel() {
-  state.listaAberta = false;
-  painelEl.hidden = true;
+  if (painelEl.open) painelEl.close();
 }
 
 function desenharPainel() {
   painelEl.innerHTML = painelMoedas();
-  painelEl.querySelectorAll('[data-acao="fechar-lista"]').forEach((el) => {
-    el.addEventListener('click', () => fecharPainel());
-  });
-  painelEl.querySelectorAll('[data-toggle]').forEach((btn) => {
-    btn.addEventListener('click', () => alternarMoeda(btn.dataset.toggle));
-  });
 }
+
+painelEl.addEventListener('click', (event) => {
+  const alvo = event.target.closest(
+    '[data-acao="fechar-lista"], [data-toggle]',
+  );
+  if (alvo) {
+    if (alvo.dataset.acao === 'fechar-lista') fecharPainel();
+    else alternarMoeda(alvo.dataset.toggle);
+    return;
+  }
+
+  // Clique no backdrop (fora da caixa do dialog) também fecha.
+  if (event.target === painelEl) {
+    const r = painelEl.getBoundingClientRect();
+    const fora =
+      event.clientX < r.left ||
+      event.clientX > r.right ||
+      event.clientY < r.top ||
+      event.clientY > r.bottom;
+    if (fora) fecharPainel();
+  }
+});
+
+painelEl.addEventListener('close', () => {
+  state.listaAberta = false;
+  atualizarBotaoLista();
+  // O render da troca de moedas substitui o botão que abriu o painel; nesse
+  // caso o foco não tem para onde voltar sozinho.
+  if (!painelOrigem?.isConnected) {
+    app.querySelector('[data-acao="lista-moedas"]')?.focus();
+  }
+  painelOrigem = null;
+});
 
 /** Adiciona ou remove uma moeda da lista (nunca deixa a lista vazia). */
 function alternarMoeda(codigo) {
@@ -479,7 +518,18 @@ function alternarMoeda(codigo) {
     state.moedas.push(codigo);
   }
   salvarMoedas();
-  desenharPainel();
+
+  // Atualiza só o item tocado: redesenhar a lista inteira devolvia a rolagem
+  // ao topo e tirava o foco de quem estava escolhendo várias moedas.
+  const botao = painelEl.querySelector(`[data-toggle="${codigo}"]`);
+  if (botao) {
+    const ativa = state.moedas.includes(codigo);
+    botao.classList.toggle('painel-item-ativa', ativa);
+    botao.setAttribute('aria-pressed', String(ativa));
+    const marca = botao.querySelector('.painel-marca');
+    if (marca) marca.textContent = ativa ? '✓' : '';
+  }
+
   render();
 }
 
