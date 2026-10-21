@@ -133,8 +133,12 @@ for (const marker of [
   'apple-touch-icon',
   'theme-color',
   'apple-mobile-web-app-capable',
+  'name="description"',
 ]) {
   if (!html.includes(marker)) problems.push(`index.html sem ${marker}`);
+}
+if (!existsSync(join(DIST, 'robots.txt'))) {
+  problems.push('faltando no build: robots.txt');
 }
 if (html.includes('%APP_BASE%')) {
   problems.push('index.html com %APP_BASE% não substituído pelo Vite');
