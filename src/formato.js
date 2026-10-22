@@ -98,13 +98,11 @@ export function normalizarEntrada(texto) {
   let b = String(texto).replace(/[^\d.,]/g, '');
 
   // Um ponto é milhar quando o texto já tem vírgula ou quando forma grupos
-  // de três dígitos após um inteiro válido ("1.234.567"). O `\d*` final cobre
-  // o dígito recém-digitado depois de um grupo já formatado: "1.000" + "0"
-  // chega como "1.0000", que ainda é milhar — não pode virar "1,0000".
-  // Fora disso é o atalho decimal de teclado, não o formato americano.
+  // de três dígitos após um inteiro válido ("1.234.567"). Fora disso é o
+  // atalho decimal de teclado, não o formato americano.
   if (b.includes('.')) {
     const temVirgula = b.includes(',');
-    const gruposDeMilhar = /^[1-9]\d{0,2}(?:\.\d{3})+\d*$/.test(b);
+    const gruposDeMilhar = /^[1-9]\d{0,2}(?:\.\d{3})+$/.test(b);
 
     if (temVirgula || gruposDeMilhar) {
       b = b.replace(/\./g, '');
