@@ -98,11 +98,13 @@ export function normalizarEntrada(texto) {
   let b = String(texto).replace(/[^\d.,]/g, '');
 
   // Um ponto é milhar quando o texto já tem vírgula ou quando forma grupos
-  // de três dígitos após um inteiro válido ("1.234.567"). Fora disso é o
-  // atalho decimal de teclado, não o formato americano.
+  // de três dígitos após um inteiro válido ("1.234.567"). O `\d*` final cobre
+  // o dígito recém-digitado depois de um grupo já formatado: "1.000" + "0"
+  // chega como "1.0000", que ainda é milhar — não pode virar "1,0000".
+  // Fora disso é o atalho decimal de teclado, não o formato americano.
   if (b.includes('.')) {
     const temVirgula = b.includes(',');
-    const gruposDeMilhar = /^[1-9]\d{0,2}(?:\.\d{3})+$/.test(b);
+    const gruposDeMilhar = /^[1-9]\d{0,2}(?:\.\d{3})+\d*$/.test(b);
 
     if (temVirgula || gruposDeMilhar) {
       b = b.replace(/\./g, '');
@@ -123,6 +125,18 @@ export function normalizarEntrada(texto) {
   // Um valor absurdamente longo não tem uso e pode virar Infinity ao ser
   // interpretado; 24 caracteres cabem em qualquer montante realista.
   return b.slice(0, 24);
+}
+
+/**
+ * Relê o texto já formatado de um campo. No campo, todo ponto é separador de
+ * milhar — inclusive depois de editar um grupo, quando o valor temporário é
+ * "1.0000" ou "1.00". A vírgula continua sendo o separador decimal.
+ *
+ * Diferente de `normalizarEntrada`, que também é usada no buffer digitado e
+ * aceita ponto isolado como atalho, aqui não há ambiguidade: ponto é milhar.
+ */
+export function normalizarCampoFormatado(texto) {
+  return normalizarEntrada(String(texto).replace(/\./g, ''));
 }
 
 /**

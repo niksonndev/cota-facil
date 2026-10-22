@@ -11,6 +11,7 @@ import {
   formatarDigitando,
   formatarQuando,
   formatarValor,
+  normalizarCampoFormatado,
   normalizarEntrada,
   parseNumero,
   posicaoCursor,
@@ -158,7 +159,7 @@ function valorDoBuffer(texto) {
 
 /** Texto que representa `valor` no campo em foco, sem perder a vírgula. */
 function bufferDoValor(valor, moeda) {
-  return normalizarEntrada(formatarValor(valor, moeda));
+  return normalizarCampoFormatado(formatarValor(valor, moeda));
 }
 
 function quantidadeAtual() {
@@ -581,6 +582,17 @@ const instalacao = criarSugestaoInstalacao({
 /* ------------------------------------------------------------------ */
 
 function ligarEventos() {
+  // Insere texto no campo preservando a posição do cursor e dispara o mesmo
+  // caminho de normalização do input nativo.
+  const inserirTexto = (input, texto) => {
+    const inicio = input.selectionStart ?? input.value.length;
+    const fim = input.selectionEnd ?? inicio;
+    input.value = `${input.value.slice(0, inicio)}${texto}${input.value.slice(fim)}`;
+    const pos = inicio + texto.length;
+    input.setSelectionRange(pos, pos);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
   // Delegação: o #app pode ser remontado (troca de moedas) sem perder os
   // handlers e sem criar um listener novo por linha a cada render.
   app.addEventListener('click', (event) => {
@@ -625,13 +637,36 @@ function ligarEventos() {
     if (state.foco !== input.dataset.moeda) focarMoeda(input.dataset.moeda);
   });
 
+  app.addEventListener('keydown', (event) => {
+    const input = event.target.closest?.('.valor');
+    if (!input || !app.contains(input)) return;
+    if (event.key !== '.' || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    // Teclado físico: ponto decimal vira vírgula antes de o campo tratar
+    // qualquer ponto como separador de milhar.
+    event.preventDefault();
+    inserirTexto(input, ',');
+  });
+
+  app.addEventListener('beforeinput', (event) => {
+    const input = event.target.closest?.('.valor');
+    if (!input || !app.contains(input)) return;
+
+    // Teclado virtual/IME: mesmo tratamento quando não há keydown útil.
+    if (event.inputType !== 'insertText' || event.data !== '.') return;
+    event.preventDefault();
+    inserirTexto(input, ',');
+  });
+
   app.addEventListener('input', (event) => {
     const input = event.target.closest?.('.valor');
     if (!input || !app.contains(input)) return;
 
     // Digitar direto no campo (teclado físico) também formata ao vivo.
+    // O ponto exibido é sempre milhar; a vírgula é o decimal.
     const caret = input.selectionStart;
-    const bruto = normalizarEntrada(input.value);
+    const bruto = normalizarCampoFormatado(input.value);
     const formatado = formatarDigitando(bruto);
     state.foco = input.dataset.moeda;
     salvarPreferencia(FOCO_KEY, state.foco);

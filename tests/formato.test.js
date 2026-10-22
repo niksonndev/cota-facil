@@ -7,6 +7,7 @@ import {
   formatarQuando,
   formatarSats,
   formatarValor,
+  normalizarCampoFormatado,
   normalizarEntrada,
   parseNumero,
   posicaoCursor,
@@ -42,6 +43,20 @@ test('normalizarEntrada aplica o formato brasileiro', () => {
   assert.equal(normalizarEntrada('1.234'), '1234');
   assert.equal(normalizarEntrada('1.234,56'), '1234,56');
   assert.equal(normalizarEntrada('1,234.56'), '1,23456');
+});
+
+test('normalizarCampoFormatado trata todo ponto como milhar', () => {
+  // Regressão: o campo já exibe "1.000"; ao digitar o quarto zero, o valor
+  // bruto chega como "1.0000" e não pode virar "1,0000". Ao apagar um zero,
+  // chega como "1.00" e não pode virar "1,00".
+  assert.equal(normalizarCampoFormatado('1.0000'), '10000');
+  assert.equal(normalizarCampoFormatado('10.0000'), '100000');
+  assert.equal(normalizarCampoFormatado('1.000.0000'), '10000000');
+  assert.equal(normalizarCampoFormatado('1.00'), '100');
+  assert.equal(normalizarCampoFormatado('1.000,50'), '1000,50');
+  assert.equal(normalizarCampoFormatado('0,0001'), '0,0001');
+  assert.equal(formatarDigitando(normalizarCampoFormatado('1.0000')), '10.000');
+  assert.equal(parseNumero(normalizarCampoFormatado('1.0000')), 10000);
 });
 
 test('formatarDigitando agrupa milhares e preserva a vírgula aberta', () => {
