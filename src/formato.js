@@ -75,8 +75,11 @@ export function formatarValor(valor, moeda) {
 }
 
 /**
- * Converte um texto digitado (pt-BR, vírgula decimal) em número.
- * Aceita "1.234,56", "1234.56" e "1234,56".
+ * Converte um texto digitado para número.
+ *
+ * O formato do projeto é o brasileiro: vírgula decimal e ponto de milhar.
+ * Um ponto isolado digitado no teclado físico é aceito como atalho e vira
+ * vírgula na normalização; o formato americano não é interpretado como tal.
  */
 export function parseNumero(texto) {
   if (!texto) return NaN;
@@ -85,27 +88,23 @@ export function parseNumero(texto) {
 
 /**
  * Limpa o que veio da tela ou do teclado físico para o buffer interno:
- * só dígitos e no máximo uma vírgula. Ponto que claramente é decimal
- * (seguido de até dois dígitos no fim) vira vírgula; ponto de milhar é
- * largado — o agrupamento é recalculado na exibição.
+ * só dígitos e no máximo uma vírgula.
+ *
+ * Regra do projeto: formato brasileiro (vírgula decimal, ponto de milhar).
+ * Pontos de milhar são descartados; um ponto decimal isolado é um atalho de
+ * digitação e vira vírgula. O agrupamento é recalculado na exibição.
  */
 export function normalizarEntrada(texto) {
   let b = String(texto).replace(/[^\d.,]/g, '');
 
-  // Separa o que é milhar do que é decimal. Um ponto é milhar quando o texto
-  // já tem vírgula ou quando forma grupos de três dígitos após um inteiro
-  // válido ("1.234.567"). Fora disso é decimal — inclusive "1." no meio da
-  // digitação, que antes virava "1" e transformava 1,5 em 15.
+  // Um ponto é milhar quando o texto já tem vírgula ou quando forma grupos
+  // de três dígitos após um inteiro válido ("1.234.567"). Fora disso é o
+  // atalho decimal de teclado, não o formato americano.
   if (b.includes('.')) {
     const temVirgula = b.includes(',');
-    const pontoDepoisDaVirgula =
-      temVirgula && b.lastIndexOf('.') > b.indexOf(',');
     const gruposDeMilhar = /^[1-9]\d{0,2}(?:\.\d{3})+$/.test(b);
 
-    if (pontoDepoisDaVirgula) {
-      // Formato americano: 1,234.56 -> 1234,56
-      b = b.replace(/,/g, '').replace(/\./g, ',');
-    } else if (temVirgula || gruposDeMilhar) {
+    if (temVirgula || gruposDeMilhar) {
       b = b.replace(/\./g, '');
     } else {
       b = b.replace(/\./g, ',');

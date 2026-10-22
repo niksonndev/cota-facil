@@ -12,12 +12,11 @@ import {
   posicaoCursor,
 } from '../src/formato.js';
 
-test('parseNumero entende os formatos aceitos', () => {
+test('parseNumero entende o formato brasileiro e o atalho decimal', () => {
   assert.equal(parseNumero('1.234,56'), 1234.56);
-  assert.equal(parseNumero('1234.56'), 1234.56);
   assert.equal(parseNumero('1234,56'), 1234.56);
-  assert.equal(parseNumero('1,234.56'), 1234.56);
-  assert.equal(parseNumero('0.0001'), 0.0001);
+  assert.equal(parseNumero('1234.56'), 1234.56); // ponto digitado como atalho
+  assert.equal(parseNumero('0.0001'), 0.0001); // idem, para valores pequenos
   assert.equal(parseNumero('1.234'), 1234);
   assert.ok(Number.isNaN(parseNumero('')));
 });
@@ -35,14 +34,14 @@ test('normalizarEntrada remove zeros à esquerda', () => {
   assert.equal(normalizarEntrada('00,5'), '0,5');
 });
 
-test('normalizarEntrada distingue ponto decimal de milhar', () => {
+test('normalizarEntrada aplica o formato brasileiro', () => {
   assert.equal(normalizarEntrada('1.'), '1,');
-  assert.equal(normalizarEntrada('1.5'), '1,5');
+  assert.equal(normalizarEntrada('1.5'), '1,5'); // atalho de teclado
   assert.equal(normalizarEntrada('0.0001'), '0,0001');
   assert.equal(normalizarEntrada('00.007'), '0,007');
   assert.equal(normalizarEntrada('1.234'), '1234');
   assert.equal(normalizarEntrada('1.234,56'), '1234,56');
-  assert.equal(normalizarEntrada('1,234.56'), '1234,56');
+  assert.equal(normalizarEntrada('1,234.56'), '1,23456');
 });
 
 test('formatarDigitando agrupa milhares e preserva a vírgula aberta', () => {
