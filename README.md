@@ -28,6 +28,13 @@ Você digita em qualquer moeda e as outras mudam na hora. O Bitcoin aparece
 inteiro (BTC) e em Satoshi (SATS). O teclado numérico fica sempre aberto,
 então no celular o teclado do sistema não atrapalha.
 
+## Formato numérico
+
+O projeto usa o formato brasileiro: vírgula como separador decimal e ponto
+como separador de milhar (`1.234,56`). A exibição nunca usa o formato
+americano (`1,234.56`). No teclado físico, um ponto isolado é aceito apenas
+como atalho de digitação e é normalizado para vírgula.
+
 ## Rodar local
 
 ```bash
