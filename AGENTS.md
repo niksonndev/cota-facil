@@ -7,4 +7,7 @@
 - Não exibir nem interpretar o formato americano (`1,234.56`).
 - Um ponto isolado digitado no teclado físico é apenas um atalho de entrada:
   ele é normalizado para vírgula e a saída continua em pt-BR.
+- Ao reler um campo já formatado, todo ponto é milhar; a vírgula continua
+  sendo o decimal. Isso vale inclusive para edições temporárias como `1.0000`
+  (quarto zero) e `1.00` (após apagar).
 - Implementação: `src/formato.js`. Cobertura: `tests/formato.test.js`.

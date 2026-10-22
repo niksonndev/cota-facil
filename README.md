@@ -33,7 +33,9 @@ então no celular o teclado do sistema não atrapalha.
 O projeto usa o formato brasileiro: vírgula como separador decimal e ponto
 como separador de milhar (`1.234,56`). A exibição nunca usa o formato
 americano (`1,234.56`). No teclado físico, um ponto isolado é aceito apenas
-como atalho de digitação e é normalizado para vírgula.
+como atalho de digitação e é normalizado para vírgula. Ao reler um campo já
+formatado, todo ponto é tratado como milhar, mesmo durante uma edição
+temporária (`1.0000`); a vírgula continua sendo o separador decimal.
 
 ## Rodar local
 
